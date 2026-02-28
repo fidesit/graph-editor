@@ -1,5 +1,5 @@
 import { Component, signal } from '@angular/core';
-import { GraphEditorComponent, Graph, GraphEditorConfig } from '@anthropic-ai/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-root',

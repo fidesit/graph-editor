@@ -1,6 +1,6 @@
-# @anthropic-ai/graph-editor
+# @utisha/graph-editor
 
-[![npm version](https://badge.fury.io/js/@anthropic-ai%2Fgraph-editor.svg)](https://www.npmjs.com/package/@anthropic-ai/graph-editor)
+[![npm version](https://badge.fury.io/js/@utisha%2Fgraph-editor.svg)](https://www.npmjs.com/package/@utisha/graph-editor)
 [![CI](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -20,7 +20,7 @@ Configuration-driven visual graph editor for Angular 19+.
 ## Installation
 
 ```bash
-npm install @anthropic-ai/graph-editor
+npm install @utisha/graph-editor
 ```
 
 ## Quick Start
@@ -29,7 +29,7 @@ npm install @anthropic-ai/graph-editor
 
 ```typescript
 import { Component, signal } from '@angular/core';
-import { GraphEditorComponent, Graph, GraphEditorConfig } from '@anthropic-ai/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-my-editor',

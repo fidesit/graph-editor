@@ -28,7 +28,7 @@ If applicable, add screenshots to help explain your problem.
 ## Environment
 
 - **Angular version**: [e.g. 19.0.0]
-- **@anthropic-ai/graph-editor version**: [e.g. 1.0.0]
+- **@utisha/graph-editor version**: [e.g. 1.0.0]
 - **Browser**: [e.g. Chrome 120, Safari 17]
 - **OS**: [e.g. macOS 14, Windows 11]
 

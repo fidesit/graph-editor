@@ -1,4 +1,4 @@
-# Contributing to @anthropic-ai/graph-editor
+# Contributing to @utisha/graph-editor
 
 Thank you for your interest in contributing! This document provides guidelines and information for contributors.
 
