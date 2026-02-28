@@ -34,6 +34,8 @@ export interface NodesConfig {
   types: NodeTypeDefinition[];
   defaultSize?: { width: number; height: number };  // Default: 220x100
   constrainToBounds?: boolean;                      // Prevent drag off-canvas
+  /** Icon position within the node (default: 'top-left') */
+  iconPosition?: 'top-left' | 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left';
 }
 
 /**

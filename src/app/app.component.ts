@@ -1,6 +1,6 @@
-import { Component, signal, viewChild } from '@angular/core';
+import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-root',
@@ -12,16 +12,45 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
         <h1>&#64;utisha/graph-editor</h1>
         <p>Configuration-driven visual graph editor for Angular 19+</p>
         <div class="header-actions">
-          <button (click)="autoLayout()">Auto Layout</button>
-          <button (click)="fitToScreen()">Fit to Screen</button>
-          <button (click)="showHelp.set(true)">Help</button>
+          <div class="theme-group">
+            <span class="theme-label">Theme</span>
+            <select class="theme-select" (change)="onThemeChange($event)" [value]="currentTheme()">
+              <option value="default">Default</option>
+              <option value="compact">Compact</option>
+              <option value="detailed">Detailed</option>
+              <option value="minimal">Minimal</option>
+            </select>
+          </div>
+          <div class="action-divider"></div>
+          <button class="action-btn" (click)="autoLayout()" title="Auto Layout">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            <span>Layout</span>
+          </button>
+          <button class="action-btn" (click)="fitToScreen()" title="Fit to Screen">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+            <span>Fit</span>
+          </button>
+          <button class="action-btn help-btn" (click)="showHelp.set(true)" title="Help">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
       </header>
 
       <main class="demo-main">
         <graph-editor
           #editor
-          [config]="editorConfig"
+          [config]="editorConfig()"
           [graph]="currentGraph()"
           (graphChange)="onGraphChange($event)"
           (nodeClick)="onNodeClick($event)"
@@ -126,23 +155,94 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
     .header-actions {
       margin-left: auto;
       display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .theme-group {
+      display: flex;
+      align-items: center;
       gap: 8px;
     }
 
-    .header-actions button {
-      padding: 8px 16px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
+    .theme-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: #6b7280;
+    }
+
+    .action-divider {
+      width: 1px;
+      height: 32px;
+      background: #e5e7eb;
+      margin: 0 8px;
+    }
+
+    .theme-select {
+      padding: 8px 32px 8px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: white url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: #374151;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .theme-select:hover {
+      border-color: #d1d5db;
+      background-color: #f9fafb;
+    }
+
+    .theme-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background-color: white;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
       background: white;
-      font-size: 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
       cursor: pointer;
       transition: all 0.15s;
     }
 
-    .header-actions button:hover {
+    .action-btn:hover {
       background: #f9fafb;
-      border-color: #3b82f6;
+      border-color: #d1d5db;
+      color: #111827;
+    }
+
+    .action-btn:active {
+      background: #f3f4f6;
+      transform: translateY(1px);
+    }
+
+    .action-btn svg {
+      flex-shrink: 0;
+    }
+
+    .help-btn {
+      padding: 8px;
+      color: #6b7280;
+    }
+
+    .help-btn:hover {
       color: #3b82f6;
+      border-color: #3b82f6;
+      background: #eff6ff;
     }
 
     .demo-main {
@@ -324,75 +424,46 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
   `]
 })
 export class AppComponent {
-  editorConfig: GraphEditorConfig = {
-    nodes: {
-      types: [
-        {
-          type: 'process',
-          label: 'Process',
-          icon: '⚙️',
-          component: null as any, // Using default rendering
-          defaultData: { name: 'New Process' },
-          size: { width: 180, height: 80 }
-        },
-        {
-          type: 'decision',
-          label: 'Decision',
-          icon: '🔀',
-          component: null as any,
-          defaultData: { name: 'Decision' },
-          size: { width: 180, height: 80 }
-        },
-        {
-          type: 'start',
-          label: 'Start',
-          icon: '▶️',
-          component: null as any,
-          defaultData: { name: 'Start' },
-          size: { width: 180, height: 80 }
-        },
-        {
-          type: 'end',
-          label: 'End',
-          icon: '⏹️',
-          component: null as any,
-          defaultData: { name: 'End' },
-          size: { width: 180, height: 80 }
-        }
-      ],
-      defaultSize: { width: 180, height: 80 }
-    },
-    edges: {
-      component: null as any,
-      style: {
-        stroke: '#94a3b8',
-        strokeWidth: 2,
-        markerEnd: 'arrow'
-      }
-    },
-    canvas: {
-      grid: {
-        enabled: true,
-        size: 20,
-        snap: true,
-        color: '#e5e7eb'
-      },
-      zoom: {
-        enabled: true,
-        min: 0.25,
-        max: 2.0,
-        step: 0.1,
-        wheelEnabled: true
-      },
-      pan: {
-        enabled: true
-      }
-    },
-    palette: {
-      enabled: true,
-      position: 'left'
-    }
+  // Theme presets
+  private readonly themes: Record<string, { nodeSize: { width: number; height: number }; shadows: boolean; gridSize: number }> = {
+    default: { nodeSize: { width: 180, height: 80 }, shadows: true, gridSize: 20 },
+    compact: { nodeSize: { width: 140, height: 60 }, shadows: false, gridSize: 15 },
+    detailed: { nodeSize: { width: 220, height: 100 }, shadows: true, gridSize: 25 },
+    minimal: { nodeSize: { width: 160, height: 70 }, shadows: false, gridSize: 20 }
   };
+
+  currentTheme = signal<string>('default');
+
+  // Base node types (size will be applied from theme)
+  private readonly nodeTypes: Omit<NodeTypeDefinition, 'size'>[] = [
+    { type: 'process', label: 'Process', icon: '⚙️', component: null as any, defaultData: { name: 'New Process' } },
+    { type: 'decision', label: 'Decision', icon: '🔀', component: null as any, defaultData: { name: 'Decision' } },
+    { type: 'start', label: 'Start', icon: '▶️', component: null as any, defaultData: { name: 'Start' } },
+    { type: 'end', label: 'End', icon: '⏹️', component: null as any, defaultData: { name: 'End' } }
+  ];
+
+  // Computed config based on theme
+  editorConfig = computed<GraphEditorConfig>(() => {
+    const theme = this.themes[this.currentTheme()];
+    return {
+      nodes: {
+        types: this.nodeTypes.map(t => ({ ...t, size: theme.nodeSize })),
+        defaultSize: theme.nodeSize,
+        iconPosition: 'top-left'
+      },
+      edges: {
+        component: null as any,
+        style: { stroke: '#94a3b8', strokeWidth: 2, markerEnd: 'arrow' }
+      },
+      canvas: {
+        grid: { enabled: true, size: theme.gridSize, snap: true, color: '#e5e7eb' },
+        zoom: { enabled: true, min: 0.25, max: 2.0, step: 0.1, wheelEnabled: true },
+        pan: { enabled: true }
+      },
+      palette: { enabled: true, position: 'left' },
+      theme: { shadows: theme.shadows }
+    };
+  });
 
   currentGraph = signal<Graph>({
     nodes: [
@@ -421,6 +492,11 @@ export class AppComponent {
 
   onEdgeClick(edge: any): void {
     console.log('Edge clicked:', edge);
+  }
+
+  onThemeChange(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    this.currentTheme.set(select.value);
   }
 
 

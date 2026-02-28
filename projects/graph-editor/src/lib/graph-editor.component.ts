@@ -228,32 +228,23 @@ import {ContextMenuEvent, GraphEditorConfig, SelectionState, ValidationResult} f
                   rx="12"
                 />
 
-                <!-- Node type icon badge -->
-                <g class="node-type-badge">
-                  <circle
-                    cx="24"
-                    cy="44"
-                    r="18"
-                    fill="#f8fafc"
-                    stroke="#e2e8f0"
-                    stroke-width="1.5"
-                  />
-                  <text
-                    x="24"
-                    y="45"
-                    text-anchor="middle"
-                    dominant-baseline="middle"
-                    font-size="18"
-                  >
-                    {{ getNodeTypeIcon(node) }}
-                  </text>
-                </g>
+                <!-- Node type icon -->
+                <text
+                  class="node-icon"
+                  [attr.x]="getIconPosition(node).x"
+                  [attr.y]="getIconPosition(node).y"
+                  text-anchor="middle"
+                  dominant-baseline="middle"
+                  [attr.font-size]="getNodeSize(node).height * 0.28"
+                >
+                  {{ getNodeTypeIcon(node) }}
+                </text>
 
                 <!-- Node label -->
                 <text
                   class="node-label"
-                  [attr.x]="getNodeSize(node).width / 2 + 12"
-                  [attr.y]="getNodeSize(node).height / 2 + 2"
+                  [attr.x]="getLabelPosition(node).x"
+                  [attr.y]="getLabelPosition(node).y"
                   text-anchor="middle"
                   dominant-baseline="middle"
                   font-size="14"
@@ -1507,6 +1498,46 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   getNodeTypeIcon(node: GraphNode): string {
     const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
     return nodeConfig?.icon || '●';
+  }
+
+  getIconPosition(node: GraphNode): Position {
+    const size = this.getNodeSize(node);
+    const pos = this.config.nodes.iconPosition || 'top-left';
+    const padding = size.height * 0.25;
+    const iconSize = size.height * 0.28;
+
+    const positions: Record<string, Position> = {
+      'top-left': { x: padding, y: padding },
+      'top': { x: size.width / 2, y: padding },
+      'top-right': { x: size.width - padding, y: padding },
+      'right': { x: size.width - padding, y: size.height / 2 },
+      'bottom-right': { x: size.width - padding, y: size.height - padding },
+      'bottom': { x: size.width / 2, y: size.height - padding },
+      'bottom-left': { x: padding, y: size.height - padding },
+      'left': { x: padding, y: size.height / 2 }
+    };
+
+    return positions[pos] || positions['left'];
+  }
+
+  getLabelPosition(node: GraphNode): Position {
+    const size = this.getNodeSize(node);
+    const pos = this.config.nodes.iconPosition || 'top-left';
+    const padding = size.height * 0.25;
+
+    // Label position adjusts based on icon position
+    const labelPositions: Record<string, Position> = {
+      'top-left': { x: size.width / 2 + padding / 2, y: size.height / 2 + 4 },
+      'top': { x: size.width / 2, y: size.height / 2 + padding / 2 },
+      'top-right': { x: size.width / 2 - padding / 2, y: size.height / 2 + 4 },
+      'right': { x: size.width / 2 - padding / 2, y: size.height / 2 },
+      'bottom-right': { x: size.width / 2 - padding / 2, y: size.height / 2 - 4 },
+      'bottom': { x: size.width / 2, y: size.height / 2 - padding / 2 },
+      'bottom-left': { x: size.width / 2 + padding / 2, y: size.height / 2 - 4 },
+      'left': { x: size.width / 2 + padding / 2, y: size.height / 2 }
+    };
+
+    return labelPositions[pos] || labelPositions['top-left'];
   }
 
   private findNodeAtPosition(pos: Position): string | null {
