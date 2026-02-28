@@ -1,14 +1,15 @@
 import { Component, signal } from '@angular/core';
+import { JsonPipe } from '@angular/common';
 import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [GraphEditorComponent],
+  imports: [GraphEditorComponent, JsonPipe],
   template: `
     <div class="demo-container">
       <header class="demo-header">
-        <h1>@anthropic-ai/graph-editor</h1>
+        <h1>&#64;utisha/graph-editor</h1>
         <p>Configuration-driven visual graph editor for Angular 19+</p>
         <div class="header-actions">
           <button (click)="addProcessNode()">Add Process</button>
