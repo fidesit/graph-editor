@@ -28,6 +28,4 @@ jobs:
         run: npm run build:prod
 
       - name: Publish to npm
-        run: npm publish dist/graph-editor --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish ./dist/graph-editor --access public --provenance
