@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Auto-layout edge ports** — Edge attachment points are now recalculated after applying layout, ensuring edges connect to the most logical ports based on node positions
+- **Drag-click suppression** — After dragging nodes, the click event no longer resets the selection
 
 ## [1.0.0] - 2026-02-28
 

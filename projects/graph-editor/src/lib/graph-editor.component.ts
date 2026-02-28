@@ -84,6 +84,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private draggedNode: GraphNode | null = null;
   private dragOffset: Position = { x: 0, y: 0 };
   private draggedNodeOffsets: Map<string, Position> = new Map(); // For multi-node drag
+  private didDrag = false; // Track if actual dragging occurred (to suppress click after drag)
   private isPanning = false;
   private lastMousePos: Position = { x: 0, y: 0 };
   private draggedEdge: { edge: GraphEdge; endpoint: 'source' | 'target' } | null = null;
@@ -683,10 +684,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.panY.set(this.panY() + dy);
       this.lastMousePos = { x: event.clientX, y: event.clientY };
     } else if (this.draggedNode) {
+      this.didDrag = true; // Mark that dragging occurred
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
-
       const graph = this.internalGraph();
       const updatedNodes = [...graph.nodes];
       const movedNodeIds = new Set<string>();
@@ -901,7 +902,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (this.activeTool() !== 'hand') return;
 
     this.draggedNode = node;
-
+    this.didDrag = false; // Reset - will be set true if actual movement occurs
     // Calculate offset between mouse position and node origin to prevent jump
     const svg = (event.target as SVGElement).closest('svg')!;
     const rect = svg.getBoundingClientRect();
@@ -976,6 +977,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       }
     } else {
       // Hand tool - select or toggle selection
+      // Skip selection change if we just finished dragging
+      if (this.didDrag) {
+        this.didDrag = false;
+        return;
+      }
       if (event.ctrlKey || event.metaKey) {
         // Ctrl/Cmd+Click: toggle node in selection
         this.toggleNodeSelection(node.id);
