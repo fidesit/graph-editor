@@ -1,12 +1,12 @@
 <div class="graph-editor-container">
   <!-- Canvas with overlaid palette -->
   <div class="graph-canvas-wrapper">
-    <!-- Top-left horizontal palette overlay -->
+    <!-- Top horizontal toolbar -->
     @if (config.palette?.enabled !== false) {
-      <div class="graph-palette-overlay">
+      <div class="graph-toolbar-top">
         <!-- Tools -->
         <button
-          class="palette-item tool-item"
+          class="toolbar-btn"
           [class.active]="activeTool() === 'hand'"
           title="Hand tool (move nodes)"
           (click)="switchTool('hand')"
@@ -14,7 +14,7 @@
           <span class="icon">✋</span>
         </button>
         <button
-          class="palette-item tool-item"
+          class="toolbar-btn"
           [class.active]="activeTool() === 'line'"
           title="Line tool (draw connections)"
           (click)="switchTool('line')"
@@ -22,41 +22,93 @@
           <span class="icon">∕</span>
         </button>
 
-        <!-- Divider -->
-        <div class="palette-divider"></div>
+        <div class="toolbar-divider"></div>
 
-        <!-- Node types -->
-        @for (nodeType of config.nodes.types; track nodeType.type) {
-          <button
-            class="palette-item"
-            [attr.data-node-type]="nodeType.type"
-            [attr.title]="nodeType.label || nodeType.type"
-            (click)="addNode(nodeType.type)"
-          >
-            @if (nodeType.iconSvg) {
-              <svg
-                class="palette-icon-svg"
-                [attr.viewBox]="nodeType.iconSvg.viewBox || '0 0 24 24'"
-                [attr.fill]="nodeType.iconSvg.fill || 'none'"
-                [attr.stroke]="nodeType.iconSvg.stroke || '#1D6A96'"
-                [attr.stroke-width]="nodeType.iconSvg.strokeWidth || 2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+        <!-- Zoom -->
+        <button
+          class="toolbar-btn"
+          title="Zoom in"
+          (click)="zoomIn()"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+          </svg>
+        </button>
+        <button
+          class="toolbar-btn"
+          title="Zoom out"
+          (click)="zoomOut()"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35M8 11h6"/>
+          </svg>
+        </button>
+
+        <div class="toolbar-divider"></div>
+
+        <!-- Actions -->
+        <button
+          class="toolbar-btn"
+          title="Auto layout"
+          (click)="applyLayout()"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </button>
+        <button
+          class="toolbar-btn"
+          title="Fit to screen"
+          (click)="fitToScreen()"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Left vertical palette (node types) - supports multiple columns -->
+      <div class="graph-palette-container">
+        @for (column of getPaletteColumns(); track $index) {
+          <div class="graph-palette-column">
+            @for (nodeType of column; track nodeType.type) {
+              <button
+                class="palette-item"
+                [attr.data-node-type]="nodeType.type"
+                [attr.title]="nodeType.label || nodeType.type"
+                (click)="addNode(nodeType.type)"
               >
-                @for (pathData of splitIconPaths(nodeType.iconSvg.path); track $index) {
-                  <path [attr.d]="pathData"/>
+                @if (nodeType.iconSvg) {
+                  <svg
+                    class="palette-icon-svg"
+                    [attr.viewBox]="nodeType.iconSvg.viewBox || '0 0 24 24'"
+                    [attr.fill]="nodeType.iconSvg.fill || 'none'"
+                    [attr.stroke]="nodeType.iconSvg.stroke || '#1D6A96'"
+                    [attr.stroke-width]="nodeType.iconSvg.strokeWidth || 2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    @for (pathData of splitIconPaths(nodeType.iconSvg.path); track $index) {
+                      <path [attr.d]="pathData"/>
+                    }
+                  </svg>
+                } @else if (nodeType.defaultData['imageUrl']) {
+                  <img
+                    class="palette-icon-img"
+                    [src]="nodeType.defaultData['imageUrl']"
+                    [alt]="nodeType.label || nodeType.type"
+                  />
+                } @else {
+                  <span class="icon">{{ nodeType.icon || '●' }}</span>
                 }
-              </svg>
-            } @else if (nodeType.defaultData['imageUrl']) {
-              <img
-                class="palette-icon-img"
-                [src]="nodeType.defaultData['imageUrl']"
-                [alt]="nodeType.label || nodeType.type"
-              />
-            } @else {
-              <span class="icon">{{ nodeType.icon || '●' }}</span>
+              </button>
             }
-          </button>
+          </div>
         }
       </div>
     }

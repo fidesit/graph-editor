@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-02-28
+
+### Added
+
+- **Toolbar redesign** — New two-toolbar layout:
+  - Top horizontal toolbar: Hand tool, Line tool, Zoom in/out, Auto layout, Fit to screen
+  - Left vertical palette: Node types for drag-and-drop (auto-wraps to multiple columns when needed)
+- **Zoom controls** — New `zoomIn()` and `zoomOut()` public methods.
+- **Multi-column palette** — When there are many node types, the palette automatically creates additional columns to prevent overflow.
+
+### Changed
+
+- Demo app header simplified — Layout/Fit buttons removed (now in library toolbar).
+
 ## [1.0.4] - 2026-02-28
 
 ### Added

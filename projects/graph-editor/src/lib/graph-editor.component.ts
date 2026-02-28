@@ -627,6 +627,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.scale.set(Math.max(min, Math.min(max, level)));
   }
 
+  zoomIn(): void {
+    const zoomConfig = this.config.canvas?.zoom;
+    const step = zoomConfig?.step ?? 0.1;
+    const max = zoomConfig?.max ?? 2.0;
+    const newScale = Math.min(max, this.scale() + step);
+    this.scale.set(newScale);
+  }
+
+  zoomOut(): void {
+    const zoomConfig = this.config.canvas?.zoom;
+    const step = zoomConfig?.step ?? 0.1;
+    const min = zoomConfig?.min ?? 0.25;
+    const newScale = Math.max(min, this.scale() - step);
+    this.scale.set(newScale);
+  }
+
   getSelection(): SelectionState {
     return this.selection();
   }
@@ -1407,6 +1423,31 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       .split(/\n/)
       .map(p => p.trim())
       .filter(p => p.length > 0);
+  }
+
+  /**
+   * Split node types into columns for the palette.
+   * When there are too many node types to fit vertically, creates additional columns.
+   */
+  getPaletteColumns(): NodeTypeDefinition[][] {
+    const types = this.config.nodes.types;
+    if (!types || types.length === 0) return [];
+    
+    // Calculate available height for palette
+    // Top toolbar: 60px (12px top + 36px height + 12px gap)
+    // Bottom padding: 12px
+    // Each item: 40px (36px height + 4px gap)
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+    const availableHeight = viewportHeight - 72 - 12 - 12; // toolbar + gaps + bottom padding
+    const itemHeight = 40;
+    const maxItemsPerColumn = Math.max(1, Math.floor(availableHeight / itemHeight));
+    
+    // Split into columns
+    const columns: NodeTypeDefinition[][] = [];
+    for (let i = 0; i < types.length; i += maxItemsPerColumn) {
+      columns.push(types.slice(i, i + maxItemsPerColumn));
+    }
+    return columns;
   }
 
   /**

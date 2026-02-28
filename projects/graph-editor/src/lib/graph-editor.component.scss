@@ -6,13 +6,88 @@
   background: var(--graph-editor-canvas-bg, #f8f9fa);
 }
 
-.graph-palette-overlay {
+// Top horizontal toolbar
+.graph-toolbar-top {
   position: absolute;
-  top: 16px;
-  left: 16px;
+  top: 12px;
+  left: 12px;
   display: flex;
   gap: 4px;
   z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1.5px solid var(--neutral-200, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--white, #fff);
+  color: var(--neutral-600, #4b5563);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  font-size: 18px;
+}
+
+.toolbar-btn:focus-visible {
+  outline: 2px solid var(--indigo-400, #818cf8);
+  outline-offset: 2px;
+}
+
+.toolbar-btn:hover {
+  background: var(--neutral-50, #f9fafb);
+  border-color: var(--interactive, #3b82f6);
+  color: var(--interactive, #3b82f6);
+}
+
+.toolbar-btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.toolbar-btn.active {
+  background: var(--interactive, #3b82f6);
+  border-color: var(--interactive, #3b82f6);
+  color: white;
+}
+
+.toolbar-btn.active:hover {
+  background: var(--interactive-hover, #2563eb);
+  border-color: var(--interactive-hover, #2563eb);
+  color: white;
+}
+
+.toolbar-divider {
+  width: 1px;
+  background: var(--neutral-200, #e5e7eb);
+  align-self: stretch;
+  margin: 4px 2px;
+}
+
+// Left vertical palette container (supports multiple columns)
+.graph-palette-container {
+  position: absolute;
+  top: 72px; // toolbar height (36px) + padding (12px*2) + gap (12px)
+  left: 12px;
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  z-index: 10;
+}
+
+.graph-palette-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   background: rgba(255, 255, 255, 0.95);
   padding: 6px;
   border-radius: var(--radius-md, 8px);
@@ -24,8 +99,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   padding: 0;
   border: 1.5px solid var(--neutral-200, #e5e7eb);
   border-radius: var(--radius-md, 8px);
@@ -34,56 +109,7 @@
   cursor: pointer;
   user-select: none;
   transition: all 0.15s ease;
-  font-size: 20px;
-}
-
-.palette-icon-img {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
-}
-
-.palette-icon-svg {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-
-.palette-item:focus-visible {
-  outline: 2px solid var(--indigo-400, #818cf8);
-  outline-offset: 2px;
-}
-
-.palette-item:hover {
-  background: var(--neutral-50, #f9fafb);
-  border-color: var(--interactive, #3b82f6);
-  color: var(--interactive, #3b82f6);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-}
-
-.palette-item:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
-.palette-item.tool-item.active {
-  background: var(--interactive, #3b82f6);
-  border-color: var(--interactive, #3b82f6);
-  color: white;
-}
-
-.palette-item.tool-item.active:hover {
-  background: var(--interactive-hover, #2563eb);
-  border-color: var(--interactive-hover, #2563eb);
-  color: white;
-}
-
-.palette-divider {
-  width: 1px;
-  background: var(--neutral-200, #e5e7eb);
-  align-self: stretch;
-  margin: 4px 2px;
+  font-size: 18px;
 }
 
 .graph-canvas-wrapper {

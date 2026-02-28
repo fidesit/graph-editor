@@ -153,21 +153,6 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             </select>
           </div>
           <div class="action-divider"></div>
-          <button class="action-btn" (click)="autoLayout()" title="Auto Layout">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1"/>
-              <rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-            <span>Layout</span>
-          </button>
-          <button class="action-btn" (click)="fitToScreen()" title="Fit to Screen">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-            </svg>
-            <span>Fit</span>
-          </button>
           <button class="action-btn" (click)="validate()" title="Validate">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 12l2 2 4-4"/>

@@ -26,6 +26,7 @@ Configuration-driven visual graph editor for Angular 19+.
 - ↩️ **Undo/Redo** — Full history with Ctrl+Z / Ctrl+Y
 - 🔲 **Node resize** — Drag corner handle to resize nodes (Hand tool)
 - 📝 **Text wrapping** — Labels wrap and auto-size to fit within node bounds
+- 🛠️ **Built-in toolbar** — Tools, zoom controls, layout actions in top bar; node palette on left
 
 ## Installation
 
