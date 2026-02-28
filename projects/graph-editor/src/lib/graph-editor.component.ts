@@ -219,27 +219,6 @@ import {
                   [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
                   rx="12"
                 />
-                <rect
-                  class="node-bg"
-                  [attr.width]="getNodeSize(node).width"
-                  [attr.height]="getNodeSize(node).height"
-                  fill="white"
-                  [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
-                  [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
-                  rx="12"
-                />
-                
-                <!-- Accent bar at top -->
-                <rect
-                  class="node-accent"
-                  [attr.width]="getNodeSize(node).width - 2"
-                  height="4"
-                  x="1"
-                  y="1"
-                  [attr.fill]="selection().nodes.includes(node.id) ? '#3b82f6' : '#94a3b8'"
-                  rx="12"
-                  [attr.clip-path]="'inset(0 0 50% 0 round 12px)'"
-                />
                 
                 <!-- Node type icon badge -->
                 <g class="node-type-badge">
@@ -486,10 +465,6 @@ import {
       stroke: #cbd5e1;
     }
 
-    .graph-node:hover .node-accent {
-      fill: #64748b;
-    }
-
     .graph-node text {
       pointer-events: none;
     }
@@ -503,9 +478,6 @@ import {
       filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
     }
 
-    .graph-node.selected .node-accent {
-      fill: #3b82f6;
-    }
 
     .edge-line {
       transition: stroke 0.15s, stroke-width 0.15s;
