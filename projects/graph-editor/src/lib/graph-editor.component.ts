@@ -209,13 +209,14 @@ import {
                 (click)="onNodeClick($event, node)"
                 (dblclick)="nodeDoubleClick.emit(node)"
               >
-                <!-- Node background with shadow -->
+                <!-- Node background -->
                 <rect
-                  class="node-shadow"
+                  class="node-bg"
                   [attr.width]="getNodeSize(node).width"
                   [attr.height]="getNodeSize(node).height"
-                  [attr.transform]="'translate(2, 3)'"
-                  fill="rgba(0,0,0,0.08)"
+                  fill="white"
+                  [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
+                  [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
                   rx="12"
                 />
                 <rect
@@ -504,10 +505,6 @@ import {
 
     .graph-node.selected .node-accent {
       fill: #3b82f6;
-    }
-
-    .graph-node.selected .node-shadow {
-      fill: rgba(59, 130, 246, 0.15);
     }
 
     .edge-line {
