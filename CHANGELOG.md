@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial release of @anthropic-ai/graph-editor
+- Initial release of @utisha/graph-editor
 - Core graph data model (Graph, GraphNode, GraphEdge)
 - Configuration-driven node types
 - SVG canvas with pan & zoom
