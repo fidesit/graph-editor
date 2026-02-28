@@ -40,41 +40,56 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
     @if (showHelp()) {
       <div class="help-overlay" (click)="showHelp.set(false)">
         <div class="help-popup" (click)="$event.stopPropagation()">
-          <div class="help-header">
-            <h2>Keyboard & Mouse</h2>
-            <button class="close-btn" (click)="showHelp.set(false)">×</button>
+          <button class="close-btn" (click)="showHelp.set(false)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+          <div class="help-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
+            </svg>
           </div>
-          <div class="help-content">
-            <section>
+          <h2>Keyboard & Mouse</h2>
+          <p class="help-subtitle">Quick reference for graph editor controls</p>
+          <div class="help-grid">
+            <div class="help-card">
+              <div class="card-icon">🖱️</div>
               <h3>Canvas</h3>
               <ul>
-                <li><kbd>Scroll</kbd> Zoom in/out</li>
-                <li><kbd>Drag</kbd> on canvas — Pan</li>
+                <li><kbd>Scroll</kbd> <span>Zoom in/out</span></li>
+                <li><kbd>Drag</kbd> <span>Pan view</span></li>
               </ul>
-            </section>
-            <section>
+            </div>
+            <div class="help-card">
+              <div class="card-icon">⬡</div>
               <h3>Nodes</h3>
               <ul>
-                <li><kbd>Click</kbd> Select node</li>
-                <li><kbd>Drag</kbd> Move node</li>
-                <li><kbd>Delete</kbd> Remove selected</li>
-                <li><kbd>Arrow keys</kbd> Nudge 1px (+ Shift = 10px)</li>
+                <li><kbd>Click</kbd> <span>Select</span></li>
+                <li><kbd>Drag</kbd> <span>Move</span></li>
+                <li><kbd>Del</kbd> <span>Remove</span></li>
+                <li><kbd>↑↓←→</kbd> <span>Nudge</span></li>
               </ul>
-            </section>
-            <section>
+            </div>
+            <div class="help-card">
+              <div class="card-icon">↗</div>
               <h3>Edges</h3>
               <ul>
-                <li>Use <b>Line tool</b> in left palette</li>
-                <li><kbd>Click</kbd> source node, then target</li>
-                <li><kbd>Click</kbd> edge to select & change direction</li>
+                <li><kbd>Line tool</kbd> <span>Draw mode</span></li>
+                <li><kbd>Click → Click</kbd> <span>Connect</span></li>
+                <li><kbd>Click edge</kbd> <span>Direction</span></li>
               </ul>
-            </section>
-            <section>
+            </div>
+            <div class="help-card">
+              <div class="card-icon">⌨</div>
               <h3>General</h3>
               <ul>
-                <li><kbd>Escape</kbd> Cancel / clear selection</li>
+                <li><kbd>Esc</kbd> <span>Cancel</span></li>
+                <li><kbd>Shift+↑↓←→</kbd> <span>Nudge 10px</span></li>
               </ul>
-            </section>
+            </div>
           </div>
         </div>
       </div>
@@ -170,82 +185,143 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
     .help-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.5);
+      background: rgba(17, 24, 39, 0.6);
+      backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 1000;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
 
     .help-popup {
+      position: relative;
       background: white;
-      border-radius: 12px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-      max-width: 420px;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      max-width: 520px;
       width: 90%;
-    }
-
-    .help-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px;
-      border-bottom: 1px solid #e5e7eb;
-    }
-
-    .help-header h2 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
+      padding: 32px;
+      text-align: center;
+      animation: slideUp 0.2s ease-out;
     }
 
     .close-btn {
-      background: none;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: #f3f4f6;
       border: none;
-      font-size: 24px;
+      border-radius: 8px;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       color: #6b7280;
-      line-height: 1;
+      transition: all 0.15s;
     }
 
     .close-btn:hover {
+      background: #e5e7eb;
       color: #111827;
     }
 
-    .help-content {
-      padding: 16px 20px;
+    .help-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border-radius: 14px;
+      color: white;
+      margin-bottom: 16px;
+    }
+
+    .help-popup h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0 0 4px;
+    }
+
+    .help-subtitle {
+      font-size: 14px;
+      color: #6b7280;
+      margin: 0 0 24px;
+    }
+
+    .help-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
+      gap: 12px;
+      text-align: left;
     }
 
-    .help-content section h3 {
-      font-size: 12px;
+    .help-card {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .card-icon {
+      font-size: 20px;
+      margin-bottom: 8px;
+    }
+
+    .help-card h3 {
+      font-size: 13px;
       font-weight: 600;
-      color: #6b7280;
-      text-transform: uppercase;
-      margin: 0 0 8px;
+      color: #374151;
+      margin: 0 0 10px;
     }
 
-    .help-content ul {
+    .help-card ul {
       list-style: none;
       padding: 0;
       margin: 0;
-      font-size: 13px;
     }
 
-    .help-content li {
+    .help-card li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #4b5563;
       margin-bottom: 6px;
-      color: #374151;
+    }
+
+    .help-card li:last-child {
+      margin-bottom: 0;
+    }
+
+    .help-card li span {
+      color: #6b7280;
     }
 
     kbd {
-      background: #f3f4f6;
+      background: white;
       border: 1px solid #d1d5db;
       border-radius: 4px;
       padding: 2px 6px;
       font-family: inherit;
-      font-size: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #374151;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
   `]
 })
