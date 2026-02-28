@@ -63,6 +63,15 @@ export interface NodeTypeDefinition {
   /** Default data when node is created */
   defaultData: Record<string, any>;
 
+  /**
+   * Optional image URL for node icon. When set, renders an <image> element instead of text icon.
+   * Can be overridden per-instance via node.data['imageUrl'].
+   * Supports: SVG, PNG, JPG, data URLs, or any valid image URL.
+   * @example '/assets/icons/agent.svg'
+   * @example 'data:image/svg+xml;base64,...'
+   */
+  // imageUrl?: string;  // Set in defaultData['imageUrl']
+
   /** Port definitions */
   ports?: PortConfig;
 

@@ -4,6 +4,7 @@ import {
   computed,
   ElementRef,
   EventEmitter,
+  inject,
   Input,
   OnChanges,
   OnInit,
@@ -15,6 +16,7 @@ import {
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
 import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
 import {ContextMenuEvent, GraphEditorConfig, SelectionState, ValidationResult} from './graph-editor.config';
+import {GraphHistoryService} from './services/graph-history.service';
 
 /**
  * Main graph editor component.
@@ -30,558 +32,14 @@ import {ContextMenuEvent, GraphEditorConfig, SelectionState, ValidationResult} f
   selector: 'graph-editor',
   standalone: true,
   imports: [],
+  providers: [GraphHistoryService],
   host: {
     'tabindex': '0',
     'style': 'outline: none;',
     '(keydown)': 'onKeyDown($event)'
   },
-  template: `
-    <div class="graph-editor-container">
-      <!-- Canvas with overlaid palette -->
-      <div class="graph-canvas-wrapper">
-        <!-- Top-left horizontal palette overlay -->
-        @if (config.palette?.enabled !== false) {
-          <div class="graph-palette-overlay">
-            <!-- Tools -->
-            <button
-              class="palette-item tool-item"
-              [class.active]="activeTool() === 'hand'"
-              title="Hand tool (move nodes)"
-              (click)="switchTool('hand')"
-            >
-              <span class="icon">✋</span>
-            </button>
-            <button
-              class="palette-item tool-item"
-              [class.active]="activeTool() === 'line'"
-              title="Line tool (draw connections)"
-              (click)="switchTool('line')"
-            >
-              <span class="icon">∕</span>
-            </button>
-
-            <!-- Divider -->
-            <div class="palette-divider"></div>
-
-            <!-- Node types -->
-            @for (nodeType of config.nodes.types; track nodeType.type) {
-              <button
-                class="palette-item"
-                [attr.data-node-type]="nodeType.type"
-                [attr.title]="nodeType.label || nodeType.type"
-                (click)="addNode(nodeType.type)"
-              >
-                <span class="icon">{{ nodeType.icon || '●' }}</span>
-              </button>
-            }
-          </div>
-        }
-
-        <svg
-          #canvasSvg
-          [class.tool-line]="activeTool() === 'line'"
-          [attr.width]="'100%'"
-          [attr.height]="'100%'"
-          (mousedown)="onCanvasMouseDown($event)"
-          (mousemove)="onCanvasMouseMove($event)"
-          (mouseup)="onCanvasMouseUp($event)"
-          (wheel)="onWheel($event)"
-          (contextmenu)="onContextMenu($event)"
-        >
-          <!-- Arrow marker definitions -->
-          <defs>
-            <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
-              markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M 0 1 L 8 5 L 0 9 z" fill="#94a3b8"/>
-            </marker>
-            <marker id="arrow-end-selected" viewBox="0 0 10 10" refX="9" refY="5"
-              markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M 0 1 L 8 5 L 0 9 z" fill="#3b82f6"/>
-            </marker>
-            <marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5"
-              markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M 10 1 L 2 5 L 10 9 z" fill="#94a3b8"/>
-            </marker>
-            <marker id="arrow-start-selected" viewBox="0 0 10 10" refX="1" refY="5"
-              markerWidth="8" markerHeight="8" orient="auto">
-              <path d="M 10 1 L 2 5 L 10 9 z" fill="#3b82f6"/>
-            </marker>
-          </defs>
-
-          <!-- Main transform group (pan + zoom) -->
-          <g [attr.transform]="transform()">
-            <!-- Grid (if enabled) -->
-            <!-- Grid (if enabled) - extended to cover viewport during pan -->
-            @if (config.canvas?.grid?.enabled) {
-              <defs>
-                <pattern
-                  id="grid"
-                  [attr.width]="config.canvas!.grid!.size"
-                  [attr.height]="config.canvas!.grid!.size"
-                  patternUnits="userSpaceOnUse"
-                >
-                  <path
-                    [attr.d]="'M ' + config.canvas!.grid!.size + ' 0 L 0 0 0 ' + config.canvas!.grid!.size"
-                    fill="none"
-                    [attr.stroke]="config.canvas!.grid!.color || '#e0e0e0'"
-                    stroke-width="1"
-                  />
-                </pattern>
-              </defs>
-              <!-- Extended grid background covering viewport + pan offset -->
-              <rect
-                [attr.x]="gridBounds().x"
-                [attr.y]="gridBounds().y"
-                [attr.width]="gridBounds().width"
-                [attr.height]="gridBounds().height"
-                fill="url(#grid)"
-              />
-            }
-
-            <!-- Layer 0.5: Preview line for line tool (rubber-band) -->
-            @if (previewLine()) {
-              <line
-                class="preview-line"
-                [attr.x1]="previewLine()!.source.x"
-                [attr.y1]="previewLine()!.source.y"
-                [attr.x2]="previewLine()!.target.x"
-                [attr.y2]="previewLine()!.target.y"
-                stroke="#3b82f6"
-                stroke-width="2.5"
-                stroke-dasharray="8,6"
-                stroke-linecap="round"
-                opacity="0.7"
-              />
-            }
-
-            <!-- Layer 1: Edge paths (behind everything) -->
-            @for (edge of internalGraph().edges; track edge.id) {
-              <!-- Edge shadow for depth (optional) -->
-              @if (shadowsEnabled()) {
-                <path
-                  class="edge-shadow"
-                  [attr.d]="getEdgePath(edge)"
-                  stroke="rgba(0,0,0,0.06)"
-                  stroke-width="6"
-                  fill="none"
-                  stroke-linecap="round"
-                  [attr.transform]="'translate(1, 2)'"
-                />
-              }
-              <!-- Invisible wide hit-area for easier clicking (hand tool only) -->
-              <path
-                [attr.d]="getEdgePath(edge)"
-                stroke="transparent"
-                [attr.stroke-width]="20"
-                fill="none"
-                class="edge-hit-area"
-                [attr.pointer-events]="activeTool() === 'hand' ? 'stroke' : 'none'"
-                (click)="onEdgeClick($event, edge)"
-                (dblclick)="onEdgeDoubleClick($event, edge)"
-              />
-              <!-- Visible edge line -->
-              <path
-                class="edge-line"
-                [attr.d]="getEdgePath(edge)"
-                [attr.stroke]="selection().edges.includes(edge.id) ? '#3b82f6' : '#94a3b8'"
-                [attr.stroke-width]="selection().edges.includes(edge.id) ? 2.5 : 2"
-                fill="none"
-                stroke-linecap="round"
-                [class.selected]="selection().edges.includes(edge.id)"
-                [attr.marker-end]="getEdgeMarkerEnd(edge)"
-                [attr.marker-start]="getEdgeMarkerStart(edge)"
-                pointer-events="none"
-              />
-            }
-
-            <!-- Layer 2: Nodes -->
-            @for (node of internalGraph().nodes; track node.id) {
-              <g
-                [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'"
-                class="graph-node"
-                [class.selected]="selection().nodes.includes(node.id)"
-                [attr.data-node-id]="node.id"
-                (mousedown)="onNodeMouseDown($event, node)"
-                (click)="onNodeClick($event, node)"
-                (dblclick)="nodeDoubleClick.emit(node)"
-              >
-                <!-- Node shadow (optional) -->
-                @if (shadowsEnabled()) {
-                  <rect
-                    class="node-shadow"
-                    [attr.width]="getNodeSize(node).width"
-                    [attr.height]="getNodeSize(node).height"
-                    fill="rgba(0,0,0,0.08)"
-                    rx="12"
-                    transform="translate(2, 3)"
-                    style="filter: blur(4px);"
-                  />
-                }
-                <!-- Node background -->
-                <rect
-                  class="node-bg"
-                  [attr.width]="getNodeSize(node).width"
-                  [attr.height]="getNodeSize(node).height"
-                  fill="white"
-                  [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
-                  [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
-                  rx="12"
-                />
-
-                <!-- Node type icon -->
-                <text
-                  class="node-icon"
-                  [attr.x]="getIconPosition(node).x"
-                  [attr.y]="getIconPosition(node).y"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  [attr.font-size]="getNodeSize(node).height * 0.28"
-                >
-                  {{ getNodeTypeIcon(node) }}
-                </text>
-
-                <!-- Node label -->
-                <text
-                  class="node-label"
-                  [attr.x]="getLabelPosition(node).x"
-                  [attr.y]="getLabelPosition(node).y"
-                  text-anchor="middle"
-                  dominant-baseline="middle"
-                  font-size="14"
-                  font-weight="500"
-                  fill="#1e293b"
-                >
-                  {{ node.data['name'] || node.type }}
-                </text>
-              </g>
-            }
-
-            <!-- Layer 3: Attachment points (on top of nodes) -->
-            @for (node of internalGraph().nodes; track node.id) {
-              @if (showAttachmentPoints() === node.id) {
-                <g [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'">
-                  @for (port of getNodePorts(node); track port.position) {
-                    <circle
-                      [attr.cx]="port.x"
-                      [attr.cy]="port.y"
-                      [attr.r]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? 8 : 6"
-                      [attr.fill]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? '#2563eb' : '#94a3b8'"
-                      stroke="white"
-                      stroke-width="2"
-                      class="attachment-point"
-                      [class.hovered]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position"
-                      (mousedown)="$event.stopPropagation()"
-                      (click)="onAttachmentPointClick($event, node, port.position)"
-                    />
-                  }
-                </g>
-              }
-            }
-
-            <!-- Layer 4: Edge endpoints (only visible when edge is selected) -->
-            @for (edge of internalGraph().edges; track edge.id) {
-              @if (selection().edges.includes(edge.id)) {
-                <g>
-                  <!-- Source endpoint -->
-                  <circle
-                    [attr.cx]="getEdgeSourcePoint(edge).x"
-                    [attr.cy]="getEdgeSourcePoint(edge).y"
-                    r="6"
-                    fill="#3b82f6"
-                    stroke="white"
-                    stroke-width="2"
-                    class="edge-endpoint selected"
-                    (mousedown)="onEdgeEndpointMouseDown($event, edge, 'source')"
-                  />
-
-                  <!-- Target endpoint -->
-                  <circle
-                    [attr.cx]="getEdgeTargetPoint(edge).x"
-                    [attr.cy]="getEdgeTargetPoint(edge).y"
-                    r="6"
-                    fill="#3b82f6"
-                    stroke="white"
-                    stroke-width="2"
-                    class="edge-endpoint selected"
-                    (mousedown)="onEdgeEndpointMouseDown($event, edge, 'target')"
-                  />
-                </g>
-              }
-            }
-          </g>
-        </svg>
-      </div>
-
-      <!-- Edge direction selector overlay -->
-      @if (selectedEdgeMidpoint()) {
-        <div
-          class="edge-direction-selector"
-          [style.left.px]="selectedEdgeMidpoint()!.x"
-          [style.top.px]="selectedEdgeMidpoint()!.y"
-        >
-          <button
-            class="direction-btn"
-            [class.active]="selectedEdgeMidpoint()!.edge.direction === 'backward'"
-            title="Backward"
-            (click)="setEdgeDirection('backward')"
-          >←</button>
-          <button
-            class="direction-btn"
-            [class.active]="selectedEdgeMidpoint()!.edge.direction === 'bidirectional'"
-            title="Bidirectional"
-            (click)="setEdgeDirection('bidirectional')"
-          >↔</button>
-          <button
-            class="direction-btn"
-            [class.active]="!selectedEdgeMidpoint()!.edge.direction || selectedEdgeMidpoint()!.edge.direction === 'forward'"
-            title="Forward"
-            (click)="setEdgeDirection('forward')"
-          >→</button>
-        </div>
-      }
-      <!-- Validation errors -->
-      @if (validationResult() && !validationResult()!.valid) {
-        <div class="validation-panel">
-          <h4>Validation Errors</h4>
-          @for (error of validationResult()!.errors; track error.rule) {
-            <div class="error-item" [class.warning]="error.severity === 'warning'">
-              {{ error.message }}
-            </div>
-          }
-        </div>
-      }
-    </div>
-  `,
-  styles: [`
-    .graph-editor-container {
-      display: flex;
-      width: 100%;
-      height: 100%;
-      position: relative;
-      background: var(--graph-editor-canvas-bg, #f8f9fa);
-    }
-
-    .graph-palette-overlay {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      display: flex;
-      gap: 4px;
-      z-index: 10;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 6px;
-      border-radius: var(--radius-md, 8px);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      backdrop-filter: blur(4px);
-    }
-
-    .palette-item {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      padding: 0;
-      border: 1.5px solid var(--neutral-200, #e5e7eb);
-      border-radius: var(--radius-md, 8px);
-      background: var(--white, #fff);
-      color: var(--neutral-600, #4b5563);
-      cursor: pointer;
-      user-select: none;
-      transition: all 0.15s ease;
-      font-size: 20px;
-    }
-
-    .palette-item:focus-visible {
-      outline: 2px solid var(--indigo-400, #818cf8);
-      outline-offset: 2px;
-    }
-
-    .palette-item:hover {
-      background: var(--neutral-50, #f9fafb);
-      border-color: var(--interactive, #3b82f6);
-      color: var(--interactive, #3b82f6);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-
-    .palette-item:active {
-      transform: translateY(0);
-      box-shadow: none;
-    }
-
-    .palette-item.tool-item.active {
-      background: var(--interactive, #3b82f6);
-      border-color: var(--interactive, #3b82f6);
-      color: white;
-    }
-
-    .palette-item.tool-item.active:hover {
-      background: var(--interactive-hover, #2563eb);
-      border-color: var(--interactive-hover, #2563eb);
-      color: white;
-    }
-
-    .palette-divider {
-      width: 1px;
-      background: var(--neutral-200, #e5e7eb);
-      align-self: stretch;
-      margin: 4px 2px;
-    }
-
-    .graph-canvas-wrapper {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .graph-canvas {
-      width: 100%;
-      height: 100%;
-      cursor: grab;
-    }
-
-    .graph-canvas:active {
-      cursor: grabbing;
-    }
-
-    .graph-canvas.tool-line {
-      cursor: crosshair;
-    }
-
-    .graph-canvas.tool-line .graph-node {
-      cursor: crosshair;
-    }
-
-    .graph-node {
-      cursor: move;
-      user-select: none;
-      -webkit-user-select: none;
-      transition: transform 0.1s ease-out;
-    }
-
-    .graph-node:hover .node-bg {
-      stroke: #cbd5e1;
-    }
-
-    .graph-node text {
-      pointer-events: none;
-    }
-
-    .graph-node .node-label {
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-
-    .graph-node.selected .node-bg {
-      stroke: #3b82f6;
-      filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
-    }
-
-
-    .edge-line {
-      transition: stroke 0.15s, stroke-width 0.15s;
-    }
-
-    .edge-line.selected {
-      filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
-    }
-
-    .edge-hit-area {
-      cursor: pointer;
-    }
-
-    .edge-endpoint {
-      cursor: pointer;
-      transition: r 0.2s, fill 0.2s;
-    }
-
-    .edge-endpoint:hover {
-      r: 8;
-      fill: #2563eb;
-    }
-
-    .edge-endpoint.selected {
-      fill: #2563eb;
-    }
-
-    .attachment-point {
-      cursor: crosshair;
-      transition: all 0.2s;
-    }
-
-    .attachment-point.hovered {
-      filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.6));
-    }
-
-    .validation-panel {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      max-height: 200px;
-      overflow-y: auto;
-      background: white;
-      border-top: 1px solid #e5e7eb;
-      padding: 16px;
-    }
-
-    .error-item {
-      padding: 8px 12px;
-      margin-bottom: 8px;
-      background: #fee2e2;
-      border-left: 3px solid #ef4444;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    .error-item.warning {
-      background: #fef3c7;
-      border-left-color: #f59e0b;
-    }
-
-    .edge-direction-selector {
-      position: absolute;
-      transform: translate(-50%, -100%);
-      margin-top: -12px;
-      display: flex;
-      gap: 2px;
-      background: rgba(255, 255, 255, 0.95);
-      padding: 4px;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-      backdrop-filter: blur(4px);
-      z-index: 20;
-      pointer-events: auto;
-    }
-
-    .direction-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: 1px solid #e5e7eb;
-      border-radius: 4px;
-      background: white;
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.15s;
-      color: #6b7280;
-    }
-
-    .direction-btn:hover {
-      background: #f3f4f6;
-      border-color: #3b82f6;
-      color: #3b82f6;
-    }
-
-    .direction-btn.active {
-      background: #3b82f6;
-      border-color: #3b82f6;
-      color: white;
-    }
-  `],
+  templateUrl: './graph-editor.component.html',
+  styleUrl: './graph-editor.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GraphEditorComponent implements OnInit, OnChanges {
@@ -610,6 +68,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   @Output() contextMenu = new EventEmitter<ContextMenuEvent>();
 
   private readonly canvasSvgRef = viewChild<ElementRef>('canvasSvg');
+  private readonly historyService = inject(GraphHistoryService);
 
   // Internal state
   internalGraph = signal<Graph>({ nodes: [], edges: [] });
@@ -641,6 +100,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Preview line for line tool (rubber-band from source to cursor)
   previewLine = signal<{ source: Position; target: Position } | null>(null);
+
+  // Box selection state (Shift+drag)
+  private isBoxSelecting = false;
+  private boxSelectStart: Position = { x: 0, y: 0 };
+  selectionBox = signal<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Computed
   transform = computed(() =>
@@ -701,6 +165,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.internalGraph.set(structuredClone(this.graph));
     }
     this.validate();
+    // Initialize history with starting state
+    this.historyService.init(this.internalGraph());
   }
 
   // Node operations
@@ -790,6 +256,46 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.selectionChange.emit(this.selection());
   }
 
+  /** Toggle a node in/out of the current selection (for Ctrl+Click) */
+  toggleNodeSelection(nodeId: string): void {
+    const sel = this.selection();
+    const isSelected = sel.nodes.includes(nodeId);
+    if (isSelected) {
+      // Remove from selection
+      this.selection.set({
+        nodes: sel.nodes.filter(id => id !== nodeId),
+        edges: sel.edges
+      });
+    } else {
+      // Add to selection
+      this.selection.set({
+        nodes: [...sel.nodes, nodeId],
+        edges: sel.edges
+      });
+    }
+    this.selectionChange.emit(this.selection());
+  }
+
+  /** Toggle an edge in/out of the current selection (for Ctrl+Click) */
+  toggleEdgeSelection(edgeId: string): void {
+    const sel = this.selection();
+    const isSelected = sel.edges.includes(edgeId);
+    if (isSelected) {
+      // Remove from selection
+      this.selection.set({
+        nodes: sel.nodes,
+        edges: sel.edges.filter(id => id !== edgeId)
+      });
+    } else {
+      // Add to selection
+      this.selection.set({
+        nodes: sel.nodes,
+        edges: [...sel.edges, edgeId]
+      });
+    }
+    this.selectionChange.emit(this.selection());
+  }
+
   onKeyDown(event: KeyboardEvent): void {
     if (this.readonly || this.config.interaction?.readonly) return;
 
@@ -804,26 +310,72 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       return;
     }
 
+    // Undo: Ctrl+Z (or Cmd+Z on Mac)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+      if (this.undo()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
+    // Redo: Ctrl+Y or Ctrl+Shift+Z (or Cmd+Y / Cmd+Shift+Z on Mac)
+    if ((event.ctrlKey || event.metaKey) && (event.key === 'y' || (event.key === 'z' && event.shiftKey))) {
+      if (this.redo()) {
+        event.preventDefault();
+      }
+      return;
+    }
+
     if (event.key === 'Delete' || event.key === 'Backspace') {
       const sel = this.selection();
+      if (sel.nodes.length === 0 && sel.edges.length === 0) return;
 
-      // Delete selected edges
-      if (sel.edges.length > 0) {
-        for (const edgeId of sel.edges) {
-          this.removeEdge(edgeId);
-        }
-        event.preventDefault();
-        return;
+      // Batch delete: remove all selected items atomically (single history entry)
+      const graph = this.internalGraph();
+      const nodeIdsToRemove = new Set(sel.nodes);
+      const edgeIdsToRemove = new Set(sel.edges);
+
+      // Collect removed items for events
+      const removedNodes = graph.nodes.filter(n => nodeIdsToRemove.has(n.id));
+      const removedEdges = graph.edges.filter(e => edgeIdsToRemove.has(e.id));
+
+      // Filter out selected nodes
+      const remainingNodes = graph.nodes.filter(n => !nodeIdsToRemove.has(n.id));
+
+      // Filter out selected edges AND edges connected to deleted nodes
+      const remainingEdges = graph.edges.filter(e =>
+        !edgeIdsToRemove.has(e.id) &&
+        !nodeIdsToRemove.has(e.source) &&
+        !nodeIdsToRemove.has(e.target)
+      );
+
+      // Find edges that were removed because they connected to deleted nodes
+      const additionalRemovedEdges = graph.edges.filter(e =>
+        !edgeIdsToRemove.has(e.id) &&
+        (nodeIdsToRemove.has(e.source) || nodeIdsToRemove.has(e.target))
+      );
+
+      // Update graph atomically (single history push)
+      this.internalGraph.set({ ...graph, nodes: remainingNodes, edges: remainingEdges });
+      this.emitGraphChange();
+
+      // Emit removal events
+      for (const edge of removedEdges) {
+        this.edgeRemoved.emit(edge);
+      }
+      for (const edge of additionalRemovedEdges) {
+        this.edgeRemoved.emit(edge);
+      }
+      for (const node of removedNodes) {
+        this.nodeRemoved.emit(node);
       }
 
-      // Delete selected nodes (keep attached edges)
-      if (sel.nodes.length > 0) {
-        for (const nodeId of sel.nodes) {
-          this.removeNode(nodeId, false);
-        }
-        event.preventDefault();
-        return;
-      }
+      // Clear selection
+      this.selection.set({ nodes: [], edges: [] });
+      this.selectionChange.emit(this.selection());
+
+      event.preventDefault();
+      return;
     }
 
     // Arrow keys: nudge selected node(s) — 1px default, 10px with Shift
@@ -903,7 +455,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onEdgeClick(event: MouseEvent, edge: GraphEdge): void {
     if (this.activeTool() !== 'hand') return;
     event.stopPropagation();
-    this.selectEdge(edge.id);
+    if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+Click: toggle edge in selection
+      this.toggleEdgeSelection(edge.id);
+    } else {
+      // Normal click: replace selection with this edge
+      this.selectEdge(edge.id);
+    }
     this.edgeClick.emit(edge);
   }
 
@@ -1075,7 +633,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const isInteractive = isNode || isEdgeEndpoint || isAttachmentPoint || isHitArea;
 
     if (!isInteractive) {
-      this.isPanning = true;
+      const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+      const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
+      const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
+
+      if (event.shiftKey && this.activeTool() === 'hand') {
+        // Shift+drag = box selection (only with hand tool)
+        this.isBoxSelecting = true;
+        this.boxSelectStart = { x: mouseX, y: mouseY };
+        this.selectionBox.set({ x: mouseX, y: mouseY, width: 0, height: 0 });
+      } else {
+        // Normal drag = pan
+        this.isPanning = true;
+      }
       this.lastMousePos = { x: event.clientX, y: event.clientY };
       this.clearSelection();
       event.preventDefault();
@@ -1083,7 +653,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   onCanvasMouseMove(event: MouseEvent): void {
-    if (this.isPanning) {
+    if (this.isBoxSelecting) {
+      // Update selection box
+      const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+      const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
+      const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
+
+      const x = Math.min(this.boxSelectStart.x, mouseX);
+      const y = Math.min(this.boxSelectStart.y, mouseY);
+      const width = Math.abs(mouseX - this.boxSelectStart.x);
+      const height = Math.abs(mouseY - this.boxSelectStart.y);
+
+      this.selectionBox.set({ x, y, width, height });
+    } else if (this.isPanning) {
       const dx = event.clientX - this.lastMousePos.x;
       const dy = event.clientY - this.lastMousePos.y;
       this.panX.set(this.panX() + dx);
@@ -1204,6 +786,44 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   onCanvasMouseUp(_event: MouseEvent): void {
+    // Handle box selection completion
+    if (this.isBoxSelecting) {
+      const box = this.selectionBox();
+      if (box && (box.width > 5 || box.height > 5)) {
+        // Find all nodes within the selection box
+        const selectedNodes: string[] = [];
+        for (const node of this.internalGraph().nodes) {
+          const size = this.getNodeSize(node);
+          const nodeRight = node.position.x + size.width;
+          const nodeBottom = node.position.y + size.height;
+          const boxRight = box.x + box.width;
+          const boxBottom = box.y + box.height;
+
+          // Check if node intersects with selection box
+          if (node.position.x < boxRight &&
+              nodeRight > box.x &&
+              node.position.y < boxBottom &&
+              nodeBottom > box.y) {
+            selectedNodes.push(node.id);
+          }
+        }
+
+        if (selectedNodes.length > 0) {
+          // Also select edges where both source and target are selected
+          const selectedEdges: string[] = [];
+          for (const edge of this.internalGraph().edges) {
+            if (selectedNodes.includes(edge.source) && selectedNodes.includes(edge.target)) {
+              selectedEdges.push(edge.id);
+            }
+          }
+          this.selection.set({ nodes: selectedNodes, edges: selectedEdges });
+          this.selectionChange.emit(this.selection());
+        }
+      }
+      this.isBoxSelecting = false;
+      this.selectionBox.set(null);
+    }
+
     // Handle edge reconnection with port snapping
     if (this.draggedEdge && this.hoveredNodeId && this.hoveredPort) {
       const graph = this.internalGraph();
@@ -1301,8 +921,14 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         this.clearSelection();
       }
     } else {
-      // Hand tool - normal select
-      this.selectNode(node.id);
+      // Hand tool - select or toggle selection
+      if (event.ctrlKey || event.metaKey) {
+        // Ctrl/Cmd+Click: toggle node in selection
+        this.toggleNodeSelection(node.id);
+      } else {
+        // Normal click: replace selection with this node
+        this.selectNode(node.id);
+      }
     }
   }
 
@@ -1379,7 +1005,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
-    
+
     const svgRect = this.canvasSvgRef()?.nativeElement.getBoundingClientRect();
     if (!svgRect) return;
 
@@ -1418,10 +1044,65 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Helper methods
   private emitGraphChange(): void {
+    // Push to history (unless this is an undo/redo operation)
+    if (!this.historyService.isUndoRedo()) {
+      this.historyService.push(this.internalGraph());
+    }
     this.graphChange.emit(this.internalGraph());
     if (this.config.validation?.validateOnChange) {
       this.validate();
     }
+  }
+
+  /** Undo the last action (Ctrl+Z) */
+  undo(): boolean {
+    const state = this.historyService.undo();
+    if (!state) {
+      return false;
+    }
+    
+    this.internalGraph.set(state);
+    this.graphChange.emit(this.internalGraph());
+    this.historyService.completeUndoRedo();
+    
+    // Clear selection after undo
+    this.selection.set({ nodes: [], edges: [] });
+    this.selectionChange.emit(this.selection());
+    
+    return true;
+  }
+
+  /** Redo the last undone action (Ctrl+Y / Ctrl+Shift+Z) */
+  redo(): boolean {
+    const state = this.historyService.redo();
+    if (!state) {
+      return false;
+    }
+    
+    this.internalGraph.set(state);
+    this.graphChange.emit(this.internalGraph());
+    this.historyService.completeUndoRedo();
+    
+    // Clear selection after redo
+    this.selection.set({ nodes: [], edges: [] });
+    this.selectionChange.emit(this.selection());
+    
+    return true;
+  }
+
+  /** Check if undo is available */
+  canUndo(): boolean {
+    return this.historyService.canUndo();
+  }
+
+  /** Check if redo is available */
+  canRedo(): boolean {
+    return this.historyService.canRedo();
+  }
+
+  /** Clear history and reset to current state */
+  clearHistory(): void {
+    this.historyService.clear(this.internalGraph());
   }
 
   private generateId(): string {
@@ -1534,6 +1215,58 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return nodeConfig?.icon || '●';
   }
 
+  /**
+   * Get custom image URL for a node.
+   * Checks node.data['imageUrl'] first, then falls back to nodeType.defaultData['imageUrl'].
+   * Returns null if no image is configured (will render text icon instead).
+   */
+  getNodeImage(node: GraphNode): string | null {
+    // Check instance-level image first
+    if (node.data['imageUrl']) {
+      return node.data['imageUrl'] as string;
+    }
+    // Fall back to node type default
+    const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
+    if (nodeConfig?.defaultData['imageUrl']) {
+      return nodeConfig.defaultData['imageUrl'] as string;
+    }
+    return null;
+  }
+
+  /**
+   * Get the position for the node image (top-left corner of image).
+   * Uses same positioning logic as icon but accounts for image dimensions.
+   */
+  getImagePosition(node: GraphNode): Position {
+    const size = this.getNodeSize(node);
+    const imageSize = this.getImageSize(node);
+    const pos = this.config.nodes.iconPosition || 'top-left';
+    const padding = 8;
+
+    const positions: Record<string, Position> = {
+      'top-left': { x: padding, y: padding },
+      'top': { x: (size.width - imageSize) / 2, y: padding },
+      'top-right': { x: size.width - imageSize - padding, y: padding },
+      'right': { x: size.width - imageSize - padding, y: (size.height - imageSize) / 2 },
+      'bottom-right': { x: size.width - imageSize - padding, y: size.height - imageSize - padding },
+      'bottom': { x: (size.width - imageSize) / 2, y: size.height - imageSize - padding },
+      'bottom-left': { x: padding, y: size.height - imageSize - padding },
+      'left': { x: padding, y: (size.height - imageSize) / 2 }
+    };
+
+    return positions[pos] || positions['top-left'];
+  }
+
+  /**
+   * Get the size (width/height) for node images.
+   * Images are rendered as squares, sized proportionally to node height.
+   */
+  getImageSize(node: GraphNode): number {
+    const size = this.getNodeSize(node);
+    // Image takes up ~40% of node height, with min 24px and max 64px
+    return Math.min(64, Math.max(24, size.height * 0.4));
+  }
+
   getIconPosition(node: GraphNode): Position {
     const size = this.getNodeSize(node);
     const pos = this.config.nodes.iconPosition || 'top-left';
@@ -1594,7 +1327,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     for (const edge of this.internalGraph().edges) {
       const sourcePoint = this.getEdgeSourcePoint(edge);
       const targetPoint = this.getEdgeTargetPoint(edge);
-      
+
       // Calculate distance from point to line segment
       const dist = this.pointToSegmentDistance(pos, sourcePoint, targetPoint);
       if (dist < hitDistance) {
@@ -1608,19 +1341,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const dx = lineEnd.x - lineStart.x;
     const dy = lineEnd.y - lineStart.y;
     const lengthSquared = dx * dx + dy * dy;
-    
+
     if (lengthSquared === 0) {
       // Line segment is a point
       return Math.sqrt((point.x - lineStart.x) ** 2 + (point.y - lineStart.y) ** 2);
     }
-    
+
     // Project point onto line segment
     let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
     t = Math.max(0, Math.min(1, t));
-    
+
     const projX = lineStart.x + t * dx;
     const projY = lineStart.y + t * dy;
-    
+
     return Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2);
   }
 

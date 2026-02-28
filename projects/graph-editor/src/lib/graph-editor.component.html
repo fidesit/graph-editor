@@ -1,0 +1,351 @@
+<div class="graph-editor-container">
+  <!-- Canvas with overlaid palette -->
+  <div class="graph-canvas-wrapper">
+    <!-- Top-left horizontal palette overlay -->
+    @if (config.palette?.enabled !== false) {
+      <div class="graph-palette-overlay">
+        <!-- Tools -->
+        <button
+          class="palette-item tool-item"
+          [class.active]="activeTool() === 'hand'"
+          title="Hand tool (move nodes)"
+          (click)="switchTool('hand')"
+        >
+          <span class="icon">✋</span>
+        </button>
+        <button
+          class="palette-item tool-item"
+          [class.active]="activeTool() === 'line'"
+          title="Line tool (draw connections)"
+          (click)="switchTool('line')"
+        >
+          <span class="icon">∕</span>
+        </button>
+
+        <!-- Divider -->
+        <div class="palette-divider"></div>
+
+        <!-- Node types -->
+        @for (nodeType of config.nodes.types; track nodeType.type) {
+          <button
+            class="palette-item"
+            [attr.data-node-type]="nodeType.type"
+            [attr.title]="nodeType.label || nodeType.type"
+            (click)="addNode(nodeType.type)"
+          >
+            @if (nodeType.defaultData['imageUrl']) {
+              <img
+                class="palette-icon-img"
+                [src]="nodeType.defaultData['imageUrl']"
+                [alt]="nodeType.label || nodeType.type"
+              />
+            } @else {
+              <span class="icon">{{ nodeType.icon || '●' }}</span>
+            }
+          </button>
+        }
+      </div>
+    }
+
+    <svg
+      #canvasSvg
+      [class.tool-line]="activeTool() === 'line'"
+      [attr.width]="'100%'"
+      [attr.height]="'100%'"
+      (mousedown)="onCanvasMouseDown($event)"
+      (mousemove)="onCanvasMouseMove($event)"
+      (mouseup)="onCanvasMouseUp($event)"
+      (wheel)="onWheel($event)"
+      (contextmenu)="onContextMenu($event)"
+    >
+      <!-- Arrow marker definitions -->
+      <defs>
+        <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arrow-end-selected" viewBox="0 0 10 10" refX="9" refY="5"
+          markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 0 1 L 8 5 L 0 9 z" fill="#3b82f6"/>
+        </marker>
+        <marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5"
+          markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 10 1 L 2 5 L 10 9 z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arrow-start-selected" viewBox="0 0 10 10" refX="1" refY="5"
+          markerWidth="8" markerHeight="8" orient="auto">
+          <path d="M 10 1 L 2 5 L 10 9 z" fill="#3b82f6"/>
+        </marker>
+      </defs>
+
+      <!-- Main transform group (pan + zoom) -->
+      <g [attr.transform]="transform()">
+        <!-- Grid (if enabled) -->
+        <!-- Grid (if enabled) - extended to cover viewport during pan -->
+        @if (config.canvas?.grid?.enabled) {
+          <defs>
+            <pattern
+              id="grid"
+              [attr.width]="config.canvas!.grid!.size"
+              [attr.height]="config.canvas!.grid!.size"
+              patternUnits="userSpaceOnUse"
+            >
+              <path
+                [attr.d]="'M ' + config.canvas!.grid!.size + ' 0 L 0 0 0 ' + config.canvas!.grid!.size"
+                fill="none"
+                [attr.stroke]="config.canvas!.grid!.color || '#e0e0e0'"
+                stroke-width="1"
+              />
+            </pattern>
+          </defs>
+          <!-- Extended grid background covering viewport + pan offset -->
+          <rect
+            [attr.x]="gridBounds().x"
+            [attr.y]="gridBounds().y"
+            [attr.width]="gridBounds().width"
+            [attr.height]="gridBounds().height"
+            fill="url(#grid)"
+          />
+        }
+
+        <!-- Layer 0.5: Preview line for line tool (rubber-band) -->
+        @if (previewLine()) {
+          <line
+            class="preview-line"
+            [attr.x1]="previewLine()!.source.x"
+            [attr.y1]="previewLine()!.source.y"
+            [attr.x2]="previewLine()!.target.x"
+            [attr.y2]="previewLine()!.target.y"
+            stroke="#3b82f6"
+            stroke-width="2.5"
+            stroke-dasharray="8,6"
+            stroke-linecap="round"
+            opacity="0.7"
+          />
+        }
+
+        <!-- Layer 1: Edge paths (behind everything) -->
+        @for (edge of internalGraph().edges; track edge.id) {
+          <!-- Edge shadow for depth (optional) -->
+          @if (shadowsEnabled()) {
+            <path
+              class="edge-shadow"
+              [attr.d]="getEdgePath(edge)"
+              stroke="rgba(0,0,0,0.06)"
+              stroke-width="6"
+              fill="none"
+              stroke-linecap="round"
+              [attr.transform]="'translate(1, 2)'"
+            />
+          }
+          <!-- Invisible wide hit-area for easier clicking (hand tool only) -->
+          <path
+            [attr.d]="getEdgePath(edge)"
+            stroke="transparent"
+            [attr.stroke-width]="20"
+            fill="none"
+            class="edge-hit-area"
+            [attr.pointer-events]="activeTool() === 'hand' ? 'stroke' : 'none'"
+            (click)="onEdgeClick($event, edge)"
+            (dblclick)="onEdgeDoubleClick($event, edge)"
+          />
+          <!-- Visible edge line -->
+          <path
+            class="edge-line"
+            [attr.d]="getEdgePath(edge)"
+            [attr.stroke]="selection().edges.includes(edge.id) ? '#3b82f6' : '#94a3b8'"
+            [attr.stroke-width]="selection().edges.includes(edge.id) ? 2.5 : 2"
+            fill="none"
+            stroke-linecap="round"
+            [class.selected]="selection().edges.includes(edge.id)"
+            [attr.marker-end]="getEdgeMarkerEnd(edge)"
+            [attr.marker-start]="getEdgeMarkerStart(edge)"
+            pointer-events="none"
+          />
+        }
+
+        <!-- Layer 2: Nodes -->
+        @for (node of internalGraph().nodes; track node.id) {
+          <g
+            [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'"
+            class="graph-node"
+            [class.selected]="selection().nodes.includes(node.id)"
+            [attr.data-node-id]="node.id"
+            (mousedown)="onNodeMouseDown($event, node)"
+            (click)="onNodeClick($event, node)"
+            (dblclick)="nodeDoubleClick.emit(node)"
+          >
+            <!-- Node shadow (optional) -->
+            @if (shadowsEnabled()) {
+              <rect
+                class="node-shadow"
+                [attr.width]="getNodeSize(node).width"
+                [attr.height]="getNodeSize(node).height"
+                fill="rgba(0,0,0,0.08)"
+                rx="12"
+                transform="translate(2, 3)"
+                style="filter: blur(4px);"
+              />
+            }
+            <!-- Node background -->
+            <rect
+              class="node-bg"
+              [attr.width]="getNodeSize(node).width"
+              [attr.height]="getNodeSize(node).height"
+              fill="white"
+              [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
+              [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
+              rx="12"
+            />
+
+            <!-- Node type icon (text/emoji) or custom image -->
+            @if (getNodeImage(node)) {
+              <image
+                class="node-image"
+                [attr.href]="getNodeImage(node)"
+                [attr.xlink:href]="getNodeImage(node)"
+                [attr.x]="getImagePosition(node).x"
+                [attr.y]="getImagePosition(node).y"
+                [attr.width]="getImageSize(node)"
+                [attr.height]="getImageSize(node)"
+                preserveAspectRatio="xMidYMid meet"
+              />
+            } @else {
+              <text
+                class="node-icon"
+                [attr.x]="getIconPosition(node).x"
+                [attr.y]="getIconPosition(node).y"
+                text-anchor="middle"
+                dominant-baseline="middle"
+                [attr.font-size]="getNodeSize(node).height * 0.28"
+              >
+                {{ getNodeTypeIcon(node) }}
+              </text>
+            }
+
+            <!-- Node label -->
+            <text
+              class="node-label"
+              [attr.x]="getLabelPosition(node).x"
+              [attr.y]="getLabelPosition(node).y"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              font-size="14"
+              font-weight="500"
+              fill="#1e293b"
+            >
+              {{ node.data['name'] || node.type }}
+            </text>
+          </g>
+        }
+
+        <!-- Layer 3: Attachment points (on top of nodes) -->
+        @for (node of internalGraph().nodes; track node.id) {
+          @if (showAttachmentPoints() === node.id) {
+            <g [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'">
+              @for (port of getNodePorts(node); track port.position) {
+                <circle
+                  [attr.cx]="port.x"
+                  [attr.cy]="port.y"
+                  [attr.r]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? 8 : 6"
+                  [attr.fill]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? '#2563eb' : '#94a3b8'"
+                  stroke="white"
+                  stroke-width="2"
+                  class="attachment-point"
+                  [class.hovered]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position"
+                  (mousedown)="$event.stopPropagation()"
+                  (click)="onAttachmentPointClick($event, node, port.position)"
+                />
+              }
+            </g>
+          }
+        }
+
+        <!-- Layer 4: Edge endpoints (only visible when edge is selected) -->
+        @for (edge of internalGraph().edges; track edge.id) {
+          @if (selection().edges.includes(edge.id)) {
+            <g>
+              <!-- Source endpoint -->
+              <circle
+                [attr.cx]="getEdgeSourcePoint(edge).x"
+                [attr.cy]="getEdgeSourcePoint(edge).y"
+                r="6"
+                fill="#3b82f6"
+                stroke="white"
+                stroke-width="2"
+                class="edge-endpoint selected"
+                (mousedown)="onEdgeEndpointMouseDown($event, edge, 'source')"
+              />
+
+              <!-- Target endpoint -->
+              <circle
+                [attr.cx]="getEdgeTargetPoint(edge).x"
+                [attr.cy]="getEdgeTargetPoint(edge).y"
+                r="6"
+                fill="#3b82f6"
+                stroke="white"
+                stroke-width="2"
+                class="edge-endpoint selected"
+                (mousedown)="onEdgeEndpointMouseDown($event, edge, 'target')"
+              />
+            </g>
+          }
+        }
+
+        <!-- Layer 5: Selection box (Shift+drag) -->
+        @if (selectionBox()) {
+          <rect
+            class="selection-box"
+            [attr.x]="selectionBox()!.x"
+            [attr.y]="selectionBox()!.y"
+            [attr.width]="selectionBox()!.width"
+            [attr.height]="selectionBox()!.height"
+            fill="rgba(59, 130, 246, 0.1)"
+            stroke="#3b82f6"
+            stroke-width="1"
+            stroke-dasharray="4,2"
+          />
+        }
+      </g>
+    </svg>
+  </div>
+
+  <!-- Edge direction selector overlay -->
+  @if (selectedEdgeMidpoint()) {
+    <div
+      class="edge-direction-selector"
+      [style.left.px]="selectedEdgeMidpoint()!.x"
+      [style.top.px]="selectedEdgeMidpoint()!.y"
+    >
+      <button
+        class="direction-btn"
+        [class.active]="selectedEdgeMidpoint()!.edge.direction === 'backward'"
+        title="Backward"
+        (click)="setEdgeDirection('backward')"
+      >←</button>
+      <button
+        class="direction-btn"
+        [class.active]="selectedEdgeMidpoint()!.edge.direction === 'bidirectional'"
+        title="Bidirectional"
+        (click)="setEdgeDirection('bidirectional')"
+      >↔</button>
+      <button
+        class="direction-btn"
+        [class.active]="!selectedEdgeMidpoint()!.edge.direction || selectedEdgeMidpoint()!.edge.direction === 'forward'"
+        title="Forward"
+        (click)="setEdgeDirection('forward')"
+      >→</button>
+    </div>
+  }
+  <!-- Validation errors -->
+  @if (validationResult() && !validationResult()!.valid) {
+    <div class="validation-panel">
+      <h4>Validation Errors</h4>
+      @for (error of validationResult()!.errors; track error.rule) {
+        <div class="error-item" [class.warning]="error.severity === 'warning'">
+          {{ error.message }}
+        </div>
+      }
+    </div>
+  }
+</div>

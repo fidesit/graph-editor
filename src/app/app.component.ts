@@ -89,6 +89,7 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, Con
               <ul>
                 <li><kbd>Scroll</kbd> <span>Zoom in/out</span></li>
                 <li><kbd>Drag</kbd> <span>Pan view</span></li>
+                <li><kbd>Shift+Drag</kbd> <span>Box select</span></li>
               </ul>
             </div>
             <div class="help-card">
@@ -96,9 +97,10 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, Con
               <h3>Nodes</h3>
               <ul>
                 <li><kbd>Click</kbd> <span>Select</span></li>
+                <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
                 <li><kbd>Drag</kbd> <span>Move</span></li>
-                <li><kbd>Del</kbd> <span>Remove</span></li>
-                <li><kbd>↑↓←→</kbd> <span>Nudge</span></li>
+                <li><kbd>Del</kbd> <span>Remove selected</span></li>
+                <li><kbd>↑↓←→</kbd> <span>Nudge (Shift: 10px)</span></li>
               </ul>
             </div>
             <div class="help-card">
@@ -108,14 +110,16 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, Con
                 <li><kbd>Line tool</kbd> <span>Draw mode</span></li>
                 <li><kbd>Click → Click</kbd> <span>Connect</span></li>
                 <li><kbd>Click edge</kbd> <span>Direction</span></li>
+                <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
               </ul>
             </div>
             <div class="help-card">
               <div class="card-icon">⌨</div>
               <h3>General</h3>
               <ul>
-                <li><kbd>Esc</kbd> <span>Cancel</span></li>
-                <li><kbd>Shift+↑↓←→</kbd> <span>Nudge 10px</span></li>
+                <li><kbd>Ctrl+Z</kbd> <span>Undo</span></li>
+                <li><kbd>Ctrl+Y</kbd> <span>Redo</span></li>
+                <li><kbd>Esc</kbd> <span>Cancel / Deselect</span></li>
               </ul>
             </div>
           </div>
@@ -534,7 +538,13 @@ export class AppComponent {
     { type: 'process', label: 'Process', icon: '⚙️', component: null as any, defaultData: { name: 'New Process' } },
     { type: 'decision', label: 'Decision', icon: '🔀', component: null as any, defaultData: { name: 'Decision' } },
     { type: 'start', label: 'Start', icon: '▶️', component: null as any, defaultData: { name: 'Start' } },
-    { type: 'end', label: 'End', icon: '⏹️', component: null as any, defaultData: { name: 'End' } }
+    { type: 'end', label: 'End', icon: '⏹️', component: null as any, defaultData: { name: 'End' } },
+    // Example: node type with custom SVG image instead of emoji
+    { type: 'database', label: 'Database', icon: '🗄️', component: null as any, defaultData: {
+      name: 'Database',
+      // Cylinder/database SVG icon
+      imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzYjgyZjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48ZWxsaXBzZSBjeD0iMTIiIGN5PSI1IiByeD0iOSIgcnk9IjMiLz48cGF0aCBkPSJNMjEgMTJjMCAxLjY2LTQgMy05IDNzLTktMS4zNC05LTMiLz48cGF0aCBkPSJNMyA1djE0YzAgMS42NiA0IDMgOSAzczktMS4zNCA5LTNWNSIvPjwvc3ZnPg=='
+    }}
   ];
 
   // Computed config based on theme
@@ -565,7 +575,9 @@ export class AppComponent {
       { id: 'start', type: 'start', data: { name: 'Start' }, position: { x: 100, y: 100 } },
       { id: 'process1', type: 'process', data: { name: 'Process Data' }, position: { x: 300, y: 100 } },
       { id: 'decision1', type: 'decision', data: { name: 'Is Valid?' }, position: { x: 500, y: 100 } },
-      { id: 'end', type: 'end', data: { name: 'End' }, position: { x: 700, y: 100 } }
+      { id: 'end', type: 'end', data: { name: 'End' }, position: { x: 700, y: 100 } },
+      // Node with custom image
+      { id: 'db1', type: 'database', data: { name: 'Users DB' }, position: { x: 300, y: 250 } }
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'process1' },

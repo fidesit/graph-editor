@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-02-28
+
+### Added
+
+- **Custom node images** — Display custom images instead of emoji icons via `imageUrl` in node data or type defaults
+- **Box selection** — Shift+drag on canvas to select multiple nodes; automatically selects connecting edges
+- **Multi-select via Ctrl+Click** — Toggle nodes/edges in selection with Ctrl+Click (Cmd+Click on Mac)
+- **Undo/Redo** — Full history support with Ctrl+Z (undo) and Ctrl+Y or Ctrl+Shift+Z (redo)
+- **Batch delete** — Delete key removes all selected nodes and edges in one atomic operation (single undo step)
+- **Arrow key multi-move** — Arrow keys move all selected nodes together
+
+### Changed
+
+- Extracted template to separate `.html` file (352 lines)
+- Extracted styles to separate `.scss` file (234 lines)
+- Extracted `GraphHistoryService` for undo/redo logic
+- Switched tests to ChromeHeadless for ~2x faster execution
+
 ## [1.0.0] - 2026-02-28
 
 First stable release of `@utisha/graph-editor`.

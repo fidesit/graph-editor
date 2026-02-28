@@ -1,0 +1,233 @@
+.graph-editor-container {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: var(--graph-editor-canvas-bg, #f8f9fa);
+}
+
+.graph-palette-overlay {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 6px;
+  border-radius: var(--radius-md, 8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(4px);
+}
+
+.palette-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1.5px solid var(--neutral-200, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+  background: var(--white, #fff);
+  color: var(--neutral-600, #4b5563);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s ease;
+  font-size: 20px;
+}
+
+.palette-icon-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.palette-item:focus-visible {
+  outline: 2px solid var(--indigo-400, #818cf8);
+  outline-offset: 2px;
+}
+
+.palette-item:hover {
+  background: var(--neutral-50, #f9fafb);
+  border-color: var(--interactive, #3b82f6);
+  color: var(--interactive, #3b82f6);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.palette-item:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.palette-item.tool-item.active {
+  background: var(--interactive, #3b82f6);
+  border-color: var(--interactive, #3b82f6);
+  color: white;
+}
+
+.palette-item.tool-item.active:hover {
+  background: var(--interactive-hover, #2563eb);
+  border-color: var(--interactive-hover, #2563eb);
+  color: white;
+}
+
+.palette-divider {
+  width: 1px;
+  background: var(--neutral-200, #e5e7eb);
+  align-self: stretch;
+  margin: 4px 2px;
+}
+
+.graph-canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.graph-canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.graph-canvas:active {
+  cursor: grabbing;
+}
+
+.graph-canvas.tool-line {
+  cursor: crosshair;
+}
+
+.graph-canvas.tool-line .graph-node {
+  cursor: crosshair;
+}
+
+.graph-node {
+  cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.1s ease-out;
+}
+
+.graph-node:hover .node-bg {
+  stroke: #cbd5e1;
+}
+
+.graph-node text {
+  pointer-events: none;
+}
+
+.graph-node .node-label {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.graph-node.selected .node-bg {
+  stroke: #3b82f6;
+  filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
+}
+
+.edge-line {
+  transition: stroke 0.15s, stroke-width 0.15s;
+}
+
+.edge-line.selected {
+  filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
+}
+
+.edge-hit-area {
+  cursor: pointer;
+}
+
+.edge-endpoint {
+  cursor: pointer;
+  transition: r 0.2s, fill 0.2s;
+}
+
+.edge-endpoint:hover {
+  r: 8;
+  fill: #2563eb;
+}
+
+.edge-endpoint.selected {
+  fill: #2563eb;
+}
+
+.attachment-point {
+  cursor: crosshair;
+  transition: all 0.2s;
+}
+
+.attachment-point.hovered {
+  filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.6));
+}
+
+.validation-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border-top: 1px solid #e5e7eb;
+  padding: 16px;
+}
+
+.error-item {
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: #fee2e2;
+  border-left: 3px solid #ef4444;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.error-item.warning {
+  background: #fef3c7;
+  border-left-color: #f59e0b;
+}
+
+.edge-direction-selector {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  margin-top: -12px;
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 4px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  z-index: 20;
+  pointer-events: auto;
+}
+
+.direction-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.15s;
+  color: #6b7280;
+}
+
+.direction-btn:hover {
+  background: #f3f4f6;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.direction-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}

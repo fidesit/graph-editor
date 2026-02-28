@@ -17,10 +17,12 @@ Configuration-driven visual graph editor for Angular 19+.
 - ⚙️ **Configuration-driven** — No hardcoded domain logic
 - 🎯 **Type-safe** — Full TypeScript support with strict mode
 - 🎭 **Themeable** — CSS custom properties + optional shadows
-- ⌨️ **Keyboard shortcuts** — Delete, arrow keys, escape built-in
+- ⌨️ **Keyboard shortcuts** — Delete, arrow keys, escape, undo/redo
 - 📦 **Lightweight** — Only Angular + dagre dependencies
 - 🔌 **Framework-agnostic data** — Works with any backend/state management
-
+- 🖼️ **Custom node images** — Use images instead of emoji icons
+- ⬜ **Multi-selection** — Box select (Shift+drag) or Ctrl+Click to select multiple items
+- ↩️ **Undo/Redo** — Full history with Ctrl+Z / Ctrl+Y
 ## Installation
 
 ```bash
@@ -154,6 +156,37 @@ interface NodeTypeDefinition {
   constraints?: NodeConstraints;
 }
 ```
+
+### Custom Node Images
+
+Nodes can display custom images instead of emoji icons. Set `imageUrl` in `defaultData` or per-instance in `node.data['imageUrl']`:
+
+```typescript
+// In node type definition (applies to all nodes of this type)
+{
+  type: 'agent',
+  label: 'AI Agent',
+  icon: '🤖',  // Fallback if imageUrl fails to load
+  component: null,
+  defaultData: {
+    name: 'Agent',
+    imageUrl: '/assets/icons/agent.svg'  // Custom image URL
+  }
+}
+
+// Or per-instance (overrides type default)
+const node: GraphNode = {
+  id: '1',
+  type: 'agent',
+  data: {
+    name: 'Custom Agent',
+    imageUrl: 'https://example.com/custom-icon.png'  // Instance-specific
+  },
+  position: { x: 100, y: 100 }
+};
+```
+
+Supported formats: SVG, PNG, JPG, data URLs, or any valid image URL.
 
 ### Canvas Configuration
 
@@ -294,9 +327,10 @@ npm test
 - [ ] Custom node components via `foreignObject`
 - [ ] Port-based connections with type checking
 - [x] ~~Context menus~~ — Event emits on right-click (see demo for example UI)
-- [ ] Multi-select with box selection
-- [x] ~~Keyboard shortcuts~~ — Implemented (Del, arrows, Esc)
-- [ ] Undo/redo
+- [x] ~~Multi-select~~ — Box selection (Shift+drag) and Ctrl+Click toggle
+- [x] ~~Keyboard shortcuts~~ — Delete, arrows, Escape, Undo/Redo
+- [x] ~~Undo/Redo~~ — Ctrl+Z / Ctrl+Y with full history
+- [x] ~~Custom node images~~ — Use `imageUrl` in node data
 - [ ] Minimap
 - [ ] Accessibility improvements
 

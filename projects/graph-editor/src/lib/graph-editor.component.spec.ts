@@ -1,3 +1,5 @@
+// Karma + Jasmine test suite
+
 import { TestBed } from '@angular/core/testing';
 import { GraphEditorComponent } from './graph-editor.component';
 import { GraphEditorConfig } from './graph-editor.config';
