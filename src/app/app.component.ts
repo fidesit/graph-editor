@@ -175,6 +175,22 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             </svg>
             <span>Validate</span>
           </button>
+          <button class="action-btn" (click)="exportGraph()" title="Export JSON">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span>Export</span>
+          </button>
+          <button class="action-btn" (click)="showImport.set(true)" title="Import JSON">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <span>Import</span>
+          </button>
           <button class="action-btn help-btn" (click)="showHelp.set(true)" title="Help">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -218,6 +234,7 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
           [graph]="currentGraph()"
           (graphChange)="onGraphChange($event)"
           (nodeClick)="onNodeClick($event)"
+          (nodeDoubleClick)="onNodeDoubleClick($event)"
           (edgeClick)="onEdgeClick($event)"
           (contextMenu)="onContextMenu($event)"
         />
@@ -262,7 +279,9 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               <ul>
                 <li><kbd>Click</kbd> <span>Select</span></li>
                 <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
+                <li><kbd>Double-click</kbd> <span>Edit name</span></li>
                 <li><kbd>Drag</kbd> <span>Move (all if multi-selected)</span></li>
+                <li><kbd>Drag corner</kbd> <span>Resize (Hand tool)</span></li>
                 <li><kbd>Del</kbd> <span>Remove selected</span></li>
                 <li><kbd>↑↓←→</kbd> <span>Nudge (Shift: 10px)</span></li>
               </ul>
@@ -325,6 +344,50 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               Delete Edge
             </button>
           }
+        </div>
+      </div>
+    }
+
+    @if (editingNode()) {
+      <div class="edit-overlay" (click)="cancelEdit()">
+        <div class="edit-dialog" (click)="$event.stopPropagation()">
+          <h3>Edit Node</h3>
+          <label>
+            Name
+            <input
+              #editInput
+              type="text"
+              [value]="editingNode()!.data['name'] || editingNode()!.type"
+              (keydown.enter)="saveEdit(editInput.value)"
+              (keydown.escape)="cancelEdit()"
+            />
+          </label>
+          <div class="edit-actions">
+            <button class="edit-btn cancel" (click)="cancelEdit()">Cancel</button>
+            <button class="edit-btn save" (click)="saveEdit(editInput.value)">Save</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (showImport()) {
+      <div class="import-overlay" (click)="cancelImport()">
+        <div class="import-dialog" (click)="$event.stopPropagation()">
+          <h3>Import Graph JSON</h3>
+          <p class="import-hint">Paste a valid graph JSON with nodes and edges arrays</p>
+          <textarea
+            #importTextarea
+            class="import-textarea"
+            placeholder='{"nodes": [...], "edges": [...]}'
+            (keydown.escape)="cancelImport()"
+          ></textarea>
+          @if (importError()) {
+            <p class="import-error">{{ importError() }}</p>
+          }
+          <div class="import-actions">
+            <button class="edit-btn cancel" (click)="cancelImport()">Cancel</button>
+            <button class="edit-btn save" (click)="doImport(importTextarea.value)">Import</button>
+          </div>
         </div>
       </div>
     }
@@ -776,6 +839,170 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
     .validation-item-link:hover {
       color: #1d4ed8;
     }
+
+    /* Edit Node Dialog */
+    .edit-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.5);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .edit-dialog {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 320px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      animation: slideUp 0.2s ease-out;
+    }
+
+    .edit-dialog h3 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .edit-dialog label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .edit-dialog input {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 6px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .edit-dialog input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .edit-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 20px;
+    }
+
+    .edit-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .edit-btn.cancel {
+      background: white;
+      border: 1px solid #d1d5db;
+      color: #374151;
+    }
+
+    .edit-btn.cancel:hover {
+      background: #f9fafb;
+      border-color: #9ca3af;
+    }
+
+    .edit-btn.save {
+      background: #3b82f6;
+      border: 1px solid #3b82f6;
+      color: white;
+    }
+
+    .edit-btn.save:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    /* Import Dialog */
+    .import-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.5);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .import-dialog {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      width: 500px;
+      max-width: 90%;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      animation: slideUp 0.2s ease-out;
+    }
+
+    .import-dialog h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .import-hint {
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .import-textarea {
+      display: block;
+      width: 100%;
+      height: 200px;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 12px;
+      resize: vertical;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .import-textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .import-error {
+      margin: 12px 0 0;
+      padding: 8px 12px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #dc2626;
+    }
+
+    .import-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 16px;
+    }
   `]
 })
 export class AppComponent {
@@ -850,6 +1077,9 @@ export class AppComponent {
   showHelp = signal(false);
   contextMenu = signal<ContextMenuEvent | null>(null);
   validationResult = signal<ValidationResult | null>(null);
+  editingNode = signal<import('@utisha/graph-editor').GraphNode | null>(null);
+  showImport = signal(false);
+  importError = signal<string | null>(null);
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);
@@ -861,6 +1091,38 @@ export class AppComponent {
 
   onEdgeClick(edge: any): void {
     console.log('Edge clicked:', edge);
+  }
+
+  onNodeDoubleClick(node: import('@utisha/graph-editor').GraphNode): void {
+    this.editingNode.set(node);
+    // Focus input after dialog renders
+    setTimeout(() => {
+      const input = document.querySelector('.edit-dialog input') as HTMLInputElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
+  saveEdit(newName: string): void {
+    const node = this.editingNode();
+    if (!node || !newName.trim()) return;
+    
+    const graph = this.currentGraph();
+    this.currentGraph.set({
+      ...graph,
+      nodes: graph.nodes.map(n => 
+        n.id === node.id 
+          ? { ...n, data: { ...n.data, name: newName.trim() } }
+          : n
+      )
+    });
+    this.editingNode.set(null);
+  }
+
+  cancelEdit(): void {
+    this.editingNode.set(null);
   }
 
   onThemeChange(event: Event): void {
@@ -969,5 +1231,59 @@ export class AppComponent {
       edges: graph.edges.filter(e => e.id !== menu.edgeId)
     });
     this.closeContextMenu();
+  }
+
+  // Import/Export
+  exportGraph(): void {
+    const json = JSON.stringify(this.currentGraph(), null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'graph.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  cancelImport(): void {
+    this.showImport.set(false);
+    this.importError.set(null);
+  }
+
+  doImport(jsonText: string): void {
+    this.importError.set(null);
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || typeof parsed !== 'object') {
+        this.importError.set('Invalid JSON: must be an object');
+        return;
+      }
+      if (!Array.isArray(parsed.nodes)) {
+        this.importError.set('Invalid graph: missing "nodes" array');
+        return;
+      }
+      if (!Array.isArray(parsed.edges)) {
+        this.importError.set('Invalid graph: missing "edges" array');
+        return;
+      }
+      // Basic validation of nodes
+      for (const node of parsed.nodes) {
+        if (!node.id || !node.type || !node.position) {
+          this.importError.set(`Invalid node: missing id, type, or position`);
+          return;
+        }
+      }
+      // Basic validation of edges
+      for (const edge of parsed.edges) {
+        if (!edge.id || !edge.source || !edge.target) {
+          this.importError.set(`Invalid edge: missing id, source, or target`);
+          return;
+        }
+      }
+      this.currentGraph.set(parsed as Graph);
+      this.showImport.set(false);
+    } catch (e) {
+      this.importError.set(`Parse error: ${(e as Error).message}`);
+    }
   }
 }

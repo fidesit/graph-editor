@@ -109,6 +109,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private boxSelectStart: Position = { x: 0, y: 0 };
   selectionBox = signal<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  // Resize state (hand tool)
+  private resizingNode: GraphNode | null = null;
+  private resizeStartSize: { width: number; height: number } = { width: 0, height: 0 };
+  private resizeStartMousePos: Position = { x: 0, y: 0 };
+  private resizeMinSize: { width: number; height: number } = { width: 0, height: 0 };
+
   // Computed
   transform = computed(() =>
     `translate(${this.panX()}, ${this.panY()}) scale(${this.scale()})`
@@ -678,6 +684,40 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const height = Math.abs(mouseY - this.boxSelectStart.y);
 
       this.selectionBox.set({ x, y, width, height });
+    } else if (this.resizingNode) {
+      // Node resize - calculate new size based on mouse delta
+      const dx = (event.clientX - this.resizeStartMousePos.x) / this.scale();
+      const dy = (event.clientY - this.resizeStartMousePos.y) / this.scale();
+      
+      // Calculate new size, enforcing minimum
+      const newWidth = Math.max(this.resizeMinSize.width, this.resizeStartSize.width + dx);
+      const newHeight = Math.max(this.resizeMinSize.height, this.resizeStartSize.height + dy);
+      
+      // Update node size
+      const graph = this.internalGraph();
+      const nodeIndex = graph.nodes.findIndex(n => n.id === this.resizingNode!.id);
+      if (nodeIndex !== -1) {
+        const updatedNodes = [...graph.nodes];
+        updatedNodes[nodeIndex] = { 
+          ...updatedNodes[nodeIndex], 
+          size: { width: newWidth, height: newHeight } 
+        };
+        
+        // Recalculate edge ports for edges connected to this node
+        const updatedEdges = graph.edges.map(edge => {
+          if (edge.source !== this.resizingNode!.id && edge.target !== this.resizingNode!.id) return edge;
+          const sourceNode = updatedNodes.find(n => n.id === edge.source);
+          const targetNode = updatedNodes.find(n => n.id === edge.target);
+          if (!sourceNode || !targetNode) return edge;
+          const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+          const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+          if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
+          return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
+        });
+        
+        this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
+        this.emitGraphChange();
+      }
     } else if (this.isPanning) {
       const dx = event.clientX - this.lastMousePos.x;
       const dy = event.clientY - this.lastMousePos.y;
@@ -895,6 +935,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.hoveredNodeId = null;
     this.hoveredPort = null;
     this.showAttachmentPoints.set(null);
+    this.resizingNode = null;
   }
 
   onNodeMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1046,6 +1087,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.draggedEdge = { edge, endpoint };
   }
 
+  onResizeHandleMouseDown(event: MouseEvent, node: GraphNode): void {
+    if (this.readonly) return;
+    event.stopPropagation();
+    
+    this.resizingNode = node;
+    const currentSize = this.getNodeSize(node);
+    this.resizeStartSize = { ...currentSize };
+    this.resizeStartMousePos = { x: event.clientX, y: event.clientY };
+    
+    // Use current size as minimum (from config or existing node.size)
+    this.resizeMinSize = { ...currentSize };
+  }
+
   onWheel(event: WheelEvent): void {
     const zoomConfig = this.config.canvas?.zoom;
     if (!zoomConfig?.wheelEnabled) return;
@@ -1195,6 +1249,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   getNodeSize(node: GraphNode): { width: number; height: number } {
+    // Check instance-level size override first (from resize)
+    if (node.size) return node.size;
     const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
     return nodeConfig?.size || this.config.nodes.defaultSize || { width: 220, height: 100 };
   }
@@ -1425,6 +1481,168 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     };
 
     return labelPositions[pos] || labelPositions['top-left'];
+  }
+
+  /**
+   * Get the bounding box for label text within a node.
+   * This box avoids the icon area and has proper padding.
+   */
+  getLabelBounds(node: GraphNode): { x: number; y: number; width: number; height: number } {
+    const size = this.getNodeSize(node);
+    const iconPos = this.config.nodes.iconPosition || 'top-left';
+    const padding = 12; // Padding from node edges
+    const iconAreaSize = Math.max(this.getImageSize(node), size.height * 0.35) + 8; // Icon + gap
+    
+    // Default: full node minus padding
+    let x = padding;
+    let y = padding;
+    let width = size.width - padding * 2;
+    let height = size.height - padding * 2;
+    
+    // Adjust based on icon position
+    switch (iconPos) {
+      case 'top-left':
+      case 'left':
+      case 'bottom-left':
+        // Icon on left - text area starts after icon
+        x = iconAreaSize + padding / 2;
+        width = size.width - iconAreaSize - padding - padding / 2;
+        break;
+      case 'top-right':
+      case 'right':
+      case 'bottom-right':
+        // Icon on right - text area ends before icon
+        width = size.width - iconAreaSize - padding - padding / 2;
+        break;
+      case 'top':
+        // Icon on top - text area below icon
+        y = iconAreaSize + padding / 2;
+        height = size.height - iconAreaSize - padding - padding / 2;
+        break;
+      case 'bottom':
+        // Icon on bottom - text area above icon
+        height = size.height - iconAreaSize - padding - padding / 2;
+        break;
+    }
+    
+    return { x, y, width: Math.max(width, 20), height: Math.max(height, 20) };
+  }
+
+  /**
+   * Get wrapped text lines and font size for a node label.
+   * Uses text wrapping first, then font downsizing if needed.
+   */
+  getWrappedLabel(node: GraphNode): { lines: string[]; fontSize: number; lineHeight: number } {
+    const text = (node.data['name'] || node.type) as string;
+    const bounds = this.getLabelBounds(node);
+    const baseFontSize = 14;
+    const minFontSize = 9;
+    const lineHeightRatio = 1.3;
+    
+    // Try wrapping at current font size, then reduce if needed
+    for (let fontSize = baseFontSize; fontSize >= minFontSize; fontSize -= 1) {
+      const charWidth = fontSize * 0.6; // Approximate character width
+      const lineHeight = fontSize * lineHeightRatio;
+      const maxCharsPerLine = Math.floor(bounds.width / charWidth);
+      const maxLines = Math.floor(bounds.height / lineHeight);
+      
+      if (maxCharsPerLine < 3 || maxLines < 1) continue;
+      
+      const lines = this.wrapText(text, maxCharsPerLine);
+      
+      // Check if text fits
+      if (lines.length <= maxLines) {
+        return { lines, fontSize, lineHeight };
+      }
+      
+      // If at minimum font size, truncate
+      if (fontSize === minFontSize) {
+        const truncatedLines = lines.slice(0, maxLines);
+        if (lines.length > maxLines && truncatedLines.length > 0) {
+          // Add ellipsis to last line
+          const lastLine = truncatedLines[truncatedLines.length - 1];
+          if (lastLine.length > 3) {
+            truncatedLines[truncatedLines.length - 1] = lastLine.slice(0, -3) + '...';
+          }
+        }
+        return { lines: truncatedLines, fontSize, lineHeight };
+      }
+    }
+    
+    // Fallback
+    return { lines: [text], fontSize: minFontSize, lineHeight: minFontSize * lineHeightRatio };
+  }
+
+  /**
+   * Wrap text into lines respecting max characters per line.
+   * Tries to break at word boundaries.
+   */
+  private wrapText(text: string, maxCharsPerLine: number): string[] {
+    if (text.length <= maxCharsPerLine) {
+      return [text];
+    }
+    
+    const words = text.split(/\s+/);
+    const lines: string[] = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      if (currentLine.length === 0) {
+        // First word on line
+        if (word.length > maxCharsPerLine) {
+          // Word too long, break it
+          let remaining = word;
+          while (remaining.length > maxCharsPerLine) {
+            lines.push(remaining.slice(0, maxCharsPerLine - 1) + '-');
+            remaining = remaining.slice(maxCharsPerLine - 1);
+          }
+          currentLine = remaining;
+        } else {
+          currentLine = word;
+        }
+      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
+        // Word fits on current line
+        currentLine += ' ' + word;
+      } else {
+        // Start new line
+        lines.push(currentLine);
+        if (word.length > maxCharsPerLine) {
+          // Word too long, break it
+          let remaining = word;
+          while (remaining.length > maxCharsPerLine) {
+            lines.push(remaining.slice(0, maxCharsPerLine - 1) + '-');
+            remaining = remaining.slice(maxCharsPerLine - 1);
+          }
+          currentLine = remaining;
+        } else {
+          currentLine = word;
+        }
+      }
+    }
+    
+    if (currentLine.length > 0) {
+      lines.push(currentLine);
+    }
+    
+    return lines;
+  }
+
+  /**
+   * Get the Y position for each line of wrapped text (centered vertically).
+   */
+  getLabelLineY(node: GraphNode, lineIndex: number, totalLines: number, lineHeight: number): number {
+    const bounds = this.getLabelBounds(node);
+    const totalTextHeight = totalLines * lineHeight;
+    const startY = bounds.y + (bounds.height - totalTextHeight) / 2 + lineHeight / 2;
+    return startY + lineIndex * lineHeight;
+  }
+
+  /**
+   * Get the X position for label text (centered in bounds).
+   */
+  getLabelLineX(node: GraphNode): number {
+    const bounds = this.getLabelBounds(node);
+    return bounds.x + bounds.width / 2;
   }
 
   private findNodeAtPosition(pos: Position): string | null {

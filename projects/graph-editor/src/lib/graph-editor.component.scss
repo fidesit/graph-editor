@@ -237,3 +237,15 @@
   border-color: #3b82f6;
   color: white;
 }
+
+// Resize handle
+.resize-handle {
+  cursor: se-resize;
+  opacity: 0.8;
+  transition: opacity 0.15s, fill 0.15s;
+}
+
+.resize-handle:hover {
+  opacity: 1;
+  fill: #2563eb;
+}

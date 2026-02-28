@@ -237,19 +237,37 @@
               </text>
             }
 
-            <!-- Node label -->
+            <!-- Node label (wrapped and auto-sized) -->
             <text
               class="node-label"
-              [attr.x]="getLabelPosition(node).x"
-              [attr.y]="getLabelPosition(node).y"
+              [attr.x]="getLabelLineX(node)"
               text-anchor="middle"
-              dominant-baseline="middle"
-              font-size="14"
+              [attr.font-size]="getWrappedLabel(node).fontSize"
               font-weight="500"
               fill="#1e293b"
             >
-              {{ node.data['name'] || node.type }}
+              @for (line of getWrappedLabel(node).lines; track $index) {
+                <tspan
+                  [attr.x]="getLabelLineX(node)"
+                  [attr.y]="getLabelLineY(node, $index, getWrappedLabel(node).lines.length, getWrappedLabel(node).lineHeight)"
+                >{{ line }}</tspan>
+              }
             </text>
+
+            <!-- Resize handle (SE corner, visible when selected + hand tool) -->
+            @if (selection().nodes.includes(node.id) && activeTool() === 'hand' && selection().nodes.length === 1) {
+              <rect
+                class="resize-handle resize-handle-se"
+                [attr.x]="getNodeSize(node).width - 8"
+                [attr.y]="getNodeSize(node).height - 8"
+                width="10"
+                height="10"
+                fill="#3b82f6"
+                rx="2"
+                cursor="se-resize"
+                (mousedown)="onResizeHandleMouseDown($event, node)"
+              />
+            }
           </g>
         }
 

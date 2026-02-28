@@ -8,6 +8,7 @@ export interface GraphNode {
   data: Record<string, any>;           // Arbitrary user data
   position: Position;                  // Canvas coordinates
   metadata?: NodeMetadata;             // Optional metadata
+  size?: { width: number; height: number };  // Instance-level size override (for resize)
 }
 
 /**

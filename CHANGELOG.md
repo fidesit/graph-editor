@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-02-28
+
+### Added
+
+- **Node resize** — Drag the SE corner handle to resize nodes when Hand tool is selected. Resized dimensions are stored per-node and persist across sessions.
+- **Text containment** — Node labels now wrap intelligently within node bounds, with automatic font downsizing (14px → 9px) when text doesn't fit. Text avoids icon area based on `iconPosition` config.
+- **Double-click to edit** (demo) — Double-click any node to edit its name inline via modal dialog.
+- **Import/Export JSON** (demo) — Export current graph as JSON file, or import a graph by pasting JSON with validation.
+
+### Changed
+
+- Help popup now documents resize ("Drag corner") and edit ("Double-click") interactions.
+- `GraphNode` interface now has optional `size?: { width: number; height: number }` property for per-node size overrides.
+
 ## [1.0.3] - 2026-02-28
 
 ### Changed

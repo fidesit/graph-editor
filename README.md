@@ -24,6 +24,8 @@ Configuration-driven visual graph editor for Angular 19+.
 - 🎨 **Custom SVG icons** — Define your own icon sets with `iconSvg` property
 - ⬜ **Multi-selection** — Box select (Shift+drag) or Ctrl+Click to select multiple items
 - ↩️ **Undo/Redo** — Full history with Ctrl+Z / Ctrl+Y
+- 🔲 **Node resize** — Drag corner handle to resize nodes (Hand tool)
+- 📝 **Text wrapping** — Labels wrap and auto-size to fit within node bounds
 
 ## Installation
 
@@ -381,6 +383,8 @@ npm test
 - [x] ~~Undo/Redo~~ — Ctrl+Z / Ctrl+Y with full history
 - [x] ~~Custom node images~~ — Use `imageUrl` in node data
 - [x] ~~Custom SVG icons~~ — Define icons with `iconSvg` property
+- [x] ~~Node resize~~ — Drag corner handle with Hand tool
+- [x] ~~Text wrapping~~ — Labels wrap and auto-size within node bounds
 - [ ] Minimap
 - [ ] Accessibility improvements
 
