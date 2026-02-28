@@ -1,30 +1,24 @@
 import {
-  Component,
-  Input,
-  Output,
-  EventEmitter,
-  ElementRef,
-  signal,
-  computed,
-  viewChild,
   ChangeDetectionStrategy,
-  OnInit,
+  Component,
+  computed,
+  ElementRef,
+  EventEmitter,
+  Input,
   OnChanges,
+  OnInit,
+  Output,
+  signal,
   SimpleChanges,
-  effect
+  viewChild
 } from '@angular/core';
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
-import { Graph, GraphNode, GraphEdge, Position } from './graph.model';
-import {
-  GraphEditorConfig,
-  SelectionState,
-  ValidationResult,
-  ContextMenuEvent
-} from './graph-editor.config';
+import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
+import {ContextMenuEvent, GraphEditorConfig, SelectionState, ValidationResult} from './graph-editor.config';
 
 /**
  * Main graph editor component.
- * 
+ *
  * @example
  * <graph-editor
  *   [config]="editorConfig"
@@ -65,10 +59,10 @@ import {
             >
               <span class="icon">∕</span>
             </button>
-            
+
             <!-- Divider -->
             <div class="palette-divider"></div>
-            
+
             <!-- Node types -->
             @for (nodeType of config.nodes.types; track nodeType.type) {
               <button
@@ -82,7 +76,7 @@ import {
             }
           </div>
         }
-        
+
         <svg
           #canvasSvg
           [class.tool-line]="activeTool() === 'line'"
@@ -162,16 +156,18 @@ import {
 
             <!-- Layer 1: Edge paths (behind everything) -->
             @for (edge of internalGraph().edges; track edge.id) {
-              <!-- Edge shadow for depth -->
-              <path
-                class="edge-shadow"
-                [attr.d]="getEdgePath(edge)"
-                stroke="rgba(0,0,0,0.06)"
-                stroke-width="6"
-                fill="none"
-                stroke-linecap="round"
-                [attr.transform]="'translate(1, 2)'"
-              />
+              <!-- Edge shadow for depth (optional) -->
+              @if (shadowsEnabled()) {
+                <path
+                  class="edge-shadow"
+                  [attr.d]="getEdgePath(edge)"
+                  stroke="rgba(0,0,0,0.06)"
+                  stroke-width="6"
+                  fill="none"
+                  stroke-linecap="round"
+                  [attr.transform]="'translate(1, 2)'"
+                />
+              }
               <!-- Invisible wide hit-area for easier clicking (hand tool only) -->
               <path
                 [attr.d]="getEdgePath(edge)"
@@ -209,6 +205,18 @@ import {
                 (click)="onNodeClick($event, node)"
                 (dblclick)="nodeDoubleClick.emit(node)"
               >
+                <!-- Node shadow (optional) -->
+                @if (shadowsEnabled()) {
+                  <rect
+                    class="node-shadow"
+                    [attr.width]="getNodeSize(node).width"
+                    [attr.height]="getNodeSize(node).height"
+                    fill="rgba(0,0,0,0.08)"
+                    rx="12"
+                    transform="translate(2, 3)"
+                    style="filter: blur(4px);"
+                  />
+                }
                 <!-- Node background -->
                 <rect
                   class="node-bg"
@@ -219,7 +227,7 @@ import {
                   [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
                   rx="12"
                 />
-                
+
                 <!-- Node type icon badge -->
                 <g class="node-type-badge">
                   <circle
@@ -240,7 +248,7 @@ import {
                     {{ getNodeTypeIcon(node) }}
                   </text>
                 </g>
-                
+
                 <!-- Node label -->
                 <text
                   class="node-label"
@@ -294,7 +302,7 @@ import {
                     class="edge-endpoint selected"
                     (mousedown)="onEdgeEndpointMouseDown($event, edge, 'source')"
                   />
-                  
+
                   <!-- Target endpoint -->
                   <circle
                     [attr.cx]="getEdgeTargetPoint(edge).x"
@@ -616,12 +624,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   internalGraph = signal<Graph>({ nodes: [], edges: [] });
   selection = signal<SelectionState>({ nodes: [], edges: [] });
   validationResult = signal<ValidationResult | null>(null);
-  
+
   // Pan & Zoom state
   panX = signal(0);
   panY = signal(0);
   scale = signal(1);
-  
+
   // Dragging state
   private draggedNode: GraphNode | null = null;
   private dragOffset: Position = { x: 0, y: 0 };
@@ -630,13 +638,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private draggedEdge: { edge: GraphEdge; endpoint: 'source' | 'target' } | null = null;
   private hoveredNodeId: string | null = null;
   hoveredPort: { nodeId: string; port: 'top' | 'bottom' | 'left' | 'right' } | null = null;
-  
+
   // Attachment points visibility
   showAttachmentPoints = signal<string | null>(null); // nodeId to show ports for
 
   // Active tool
   activeTool = signal<'hand' | 'line'>('hand');
-  
+
   // Line tool state
   private pendingEdge: { sourceId: string; sourcePort: 'top' | 'bottom' | 'left' | 'right' } | null = null;
 
@@ -644,7 +652,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   previewLine = signal<{ source: Position; target: Position } | null>(null);
 
   // Computed
-  transform = computed(() => 
+  transform = computed(() =>
     `translate(${this.panX()}, ${this.panY()}) scale(${this.scale()})`
   );
 
@@ -652,11 +660,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const gridSize = this.config.canvas?.grid?.size || 20;
     const viewportWidth = 10000; // Large enough to cover any reasonable viewport
     const viewportHeight = 10000;
-    
+
     // Calculate grid offset to align with pan
     const x = Math.floor(-this.panX() / this.scale() / gridSize) * gridSize - viewportWidth / 2;
     const y = Math.floor(-this.panY() / this.scale() / gridSize) * gridSize - viewportHeight / 2;
-    
+
     return {
       x,
       y,
@@ -664,6 +672,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       height: viewportHeight * 2
     };
   });
+
+  // Shadow configuration (defaults to true)
+  shadowsEnabled = computed(() => this.config.theme?.shadows !== false);
 
   // Selected edge info for direction selector positioning
   selectedEdgeMidpoint = computed(() => {
@@ -761,7 +772,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     const updatedNodes = [...graph.nodes];
     updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], ...updates };
-    
+
     this.internalGraph.set({
       ...graph,
       nodes: updatedNodes
@@ -1055,7 +1066,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Event handlers
   onCanvasMouseDown(event: MouseEvent): void {
     if (this.readonly) return;
-    
+
     // Cancel pending edge on empty space click
     if (this.pendingEdge) {
       this.pendingEdge = null;
@@ -1064,7 +1075,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.hoveredPort = null;
       this.clearSelection();
     }
-    
+
     const target = event.target as SVGElement;
     const isNode = !!target.closest('.graph-node');
     const isEdgeEndpoint = target.classList.contains('edge-endpoint');
@@ -1093,26 +1104,26 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
       let x = mouseX - this.dragOffset.x;
       let y = mouseY - this.dragOffset.y;
-      
+
       // Smart snap to grid
       if (this.config.canvas?.grid?.snap) {
         const gridSize = this.config.canvas.grid.size || 20;
         const snapThreshold = gridSize / 4;
-        
+
         const snapX = Math.round(x / gridSize) * gridSize;
         const snapY = Math.round(y / gridSize) * gridSize;
-        
+
         if (Math.abs(x - snapX) < snapThreshold) x = snapX;
         if (Math.abs(y - snapY) < snapThreshold) y = snapY;
       }
-      
+
       // Atomic update: node position + edge port recalculation in one graph set
       const graph = this.internalGraph();
       const nodeIndex = graph.nodes.findIndex(n => n.id === this.draggedNode!.id);
       if (nodeIndex !== -1) {
         const updatedNodes = [...graph.nodes];
         updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], position: { x, y } };
-        
+
         // Recalculate ports for all edges connected to this node
         const draggedId = this.draggedNode.id;
         const updatedEdges = graph.edges.map(edge => {
@@ -1125,7 +1136,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
           if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
           return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
         });
-        
+
         this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
         this.emitGraphChange();
       }
@@ -1134,17 +1145,17 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
-      
+
       // Find node under cursor
       const nodeId = this.findNodeAtPosition({ x: mouseX, y: mouseY });
-      
+
       if (nodeId) {
         // Show attachment points for this node
         this.showAttachmentPoints.set(nodeId);
-        
+
         // Find closest port
         const closestPort = this.findClosestPort(nodeId, { x: mouseX, y: mouseY });
-        
+
         // Highlight port if within snap distance (40px)
         if (closestPort && closestPort.distance < 40) {
           this.hoveredPort = { nodeId, port: closestPort.port };
@@ -1164,20 +1175,20 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
-      
+
       // Get source port position
       const sourceNode = this.internalGraph().nodes.find(n => n.id === this.pendingEdge!.sourceId);
       if (sourceNode) {
         const sourcePoint = this.getPortWorldPosition(sourceNode, this.pendingEdge.sourcePort);
-        
+
         // Check if cursor is near a node - snap to its closest port
         const hoveredNodeId = this.findNodeAtPosition({ x: mouseX, y: mouseY });
         let targetPoint: Position = { x: mouseX, y: mouseY };
-        
+
         if (hoveredNodeId && hoveredNodeId !== this.pendingEdge.sourceId) {
           // Show attachment points on hovered node
           this.showAttachmentPoints.set(hoveredNodeId);
-          
+
           // Find and highlight closest port
           const closestPort = this.findClosestPort(hoveredNodeId, { x: mouseX, y: mouseY });
           if (closestPort && closestPort.distance < 40) {
@@ -1195,7 +1206,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
           this.showAttachmentPoints.set(null);
           this.hoveredPort = null;
         }
-        
+
         this.previewLine.set({ source: sourcePoint, target: targetPoint });
       }
     }
@@ -1206,11 +1217,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (this.draggedEdge && this.hoveredNodeId && this.hoveredPort) {
       const graph = this.internalGraph();
       const edgeIndex = graph.edges.findIndex(e => e.id === this.draggedEdge!.edge.id);
-      
+
       if (edgeIndex !== -1) {
         const updatedEdges = [...graph.edges];
         const updatedEdge = { ...updatedEdges[edgeIndex] };
-        
+
         // Update node connection and store port information (non-null: guarded by if condition)
         if (this.draggedEdge.endpoint === 'source') {
           updatedEdge.source = this.hoveredNodeId!;
@@ -1219,14 +1230,14 @@ export class GraphEditorComponent implements OnInit, OnChanges {
           updatedEdge.target = this.hoveredNodeId!;
           updatedEdge.targetPort = this.hoveredPort!.port;
         }
-        
+
         updatedEdges[edgeIndex] = updatedEdge;
         this.internalGraph.set({ ...graph, edges: updatedEdges });
         this.emitGraphChange();
         this.edgeUpdated.emit(updatedEdge);
       }
     }
-    
+
     this.isPanning = false;
     this.draggedNode = null;
     this.draggedEdge = null;
@@ -1239,9 +1250,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (this.readonly) return;
     event.stopPropagation(); // Always prevent canvas from seeing node mousedowns
     if (this.activeTool() !== 'hand') return;
-    
+
     this.draggedNode = node;
-    
+
     // Calculate offset between mouse position and node origin to prevent jump
     const svg = (event.target as SVGElement).closest('svg')!;
     const rect = svg.getBoundingClientRect();
@@ -1256,7 +1267,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onNodeClick(event: MouseEvent, node: GraphNode): void {
     if (this.activeTool() === 'line') {
       event.stopPropagation();
-      
+
       if (!this.pendingEdge) {
         // First click - start edge from this node
         // Pick initial port based on geometry (will be recalculated on second click)
@@ -1268,7 +1279,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         if (sourceNode) {
           const sourcePort = this.findClosestPortForEdge(sourceNode, node, 'source');
           const targetPort = this.findClosestPortForEdge(node, sourceNode, 'target');
-          
+
           const newEdge: GraphEdge = {
             id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             source: this.pendingEdge.sourceId,
@@ -1276,7 +1287,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
             sourcePort,
             targetPort
           };
-          
+
           const graph = this.internalGraph();
           this.internalGraph.set({
             ...graph,
@@ -1307,7 +1318,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onAttachmentPointClick(event: MouseEvent, node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): void {
     event.stopPropagation();
     if (this.readonly) return;
-    
+
     if (this.activeTool() === 'line') {
       if (!this.pendingEdge) {
         // First click on attachment point - start edge from this specific port
@@ -1318,7 +1329,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         const sourceNode = this.internalGraph().nodes.find(n => n.id === this.pendingEdge!.sourceId);
         if (sourceNode) {
           const sourcePort = this.findClosestPortForEdge(sourceNode, node, 'source');
-          
+
           const newEdge: GraphEdge = {
             id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             source: this.pendingEdge.sourceId,
@@ -1326,7 +1337,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
             sourcePort,
             targetPort: port
           };
-          
+
           const graph = this.internalGraph();
           this.internalGraph.set({
             ...graph,
@@ -1371,7 +1382,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         this.scale() + (delta > 0 ? step : -step)
       )
     );
-    
+
     this.scale.set(newScale);
   }
 
@@ -1397,20 +1408,20 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     let changed = false;
     const updatedEdges = graph.edges.map(edge => {
       if (edge.source !== nodeId && edge.target !== nodeId) return edge;
-      
+
       const sourceNode = graph.nodes.find(n => n.id === edge.source);
       const targetNode = graph.nodes.find(n => n.id === edge.target);
       if (!sourceNode || !targetNode) return edge;
-      
+
       const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
       const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-      
+
       if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-      
+
       changed = true;
       return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
     });
-    
+
     if (changed) {
       this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
@@ -1424,13 +1435,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   getEdgePath(edge: GraphEdge): string {
     const sourceNode = this.internalGraph().nodes.find(n => n.id === edge.source);
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
-    
+
     if (!sourceNode || !targetNode) return '';
 
     // Get port positions from edge or calculate closest
     const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
     const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-    
+
     const sourcePoint = this.getPortWorldPosition(sourceNode, sourcePort);
     const targetPoint = this.getPortWorldPosition(targetNode, targetPort);
 
@@ -1463,11 +1474,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   setEdgeDirection(direction: 'forward' | 'backward' | 'bidirectional'): void {
     const sel = this.selection();
     if (sel.edges.length !== 1) return;
-    
+
     const graph = this.internalGraph();
     const edgeIndex = graph.edges.findIndex(e => e.id === sel.edges[0]);
     if (edgeIndex === -1) return;
-    
+
     const updatedEdges = [...graph.edges];
     updatedEdges[edgeIndex] = { ...updatedEdges[edgeIndex], direction };
     this.internalGraph.set({ ...graph, edges: updatedEdges });
@@ -1479,7 +1490,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const sourceNode = this.internalGraph().nodes.find(n => n.id === edge.source);
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return { x: 0, y: 0 };
-    
+
     const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
     return this.getPortWorldPosition(sourceNode, sourcePort);
   }
@@ -1488,7 +1499,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const sourceNode = this.internalGraph().nodes.find(n => n.id === edge.source);
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return { x: 0, y: 0 };
-    
+
     const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
     return this.getPortWorldPosition(targetNode, targetPort);
   }
@@ -1526,24 +1537,24 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private findClosestPort(nodeId: string, worldPos: Position): { port: 'top' | 'bottom' | 'left' | 'right'; distance: number } | null {
     const node = this.internalGraph().nodes.find(n => n.id === nodeId);
     if (!node) return null;
-    
+
     const ports = this.getNodePorts(node);
     let closestPort: typeof ports[0] | null = null;
     let minDistance = Infinity;
-    
+
     for (const port of ports) {
       const portWorldX = node.position.x + port.x;
       const portWorldY = node.position.y + port.y;
       const dx = worldPos.x - portWorldX;
       const dy = worldPos.y - portWorldY;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      
+
       if (distance < minDistance) {
         minDistance = distance;
         closestPort = port;
       }
     }
-    
+
     return closestPort ? { port: closestPort.position, distance: minDistance } : null;
   }
 
@@ -1555,7 +1566,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       left: { x: 0, y: size.height / 2 },
       right: { x: size.width, y: size.height / 2 }
     };
-    
+
     const offset = portOffsets[port];
     return {
       x: node.position.x + offset.x,
@@ -1578,14 +1589,14 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       x: otherNode.position.x + otherSize.width / 2,
       y: otherNode.position.y + otherSize.height / 2
     };
-    
+
     const dx = otherCenter.x - nodeCenter.x;
     const dy = otherCenter.y - nodeCenter.y;
-    
+
     // Determine which port is closest based on relative position
     const absDx = Math.abs(dx);
     const absDy = Math.abs(dy);
-    
+
     if (absDx > absDy) {
       // Horizontal connection
       return dx > 0 ? 'right' : 'left';

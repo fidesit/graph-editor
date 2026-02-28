@@ -1,5 +1,5 @@
-import { Type } from '@angular/core';
-import { Graph, GraphNode, GraphEdge, EdgeStyle, Position } from './graph.model';
+import {Type} from '@angular/core';
+import {EdgeStyle, Graph, Position} from './graph.model';
 
 export interface GraphEditorConfig {
   /** Node type definitions */
@@ -221,6 +221,8 @@ export interface ContextMenuContext {
 export interface ThemeConfig {
   /** CSS custom property values */
   variables?: Record<string, string>;
+  /** Enable drop shadows on nodes and edges (default: true) */
+  shadows?: boolean;
 }
 
 /**

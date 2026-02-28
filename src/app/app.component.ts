@@ -12,8 +12,6 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
         <h1>&#64;utisha/graph-editor</h1>
         <p>Configuration-driven visual graph editor for Angular 19+</p>
         <div class="header-actions">
-          <button (click)="addProcessNode()">Add Process</button>
-          <button (click)="addDecisionNode()">Add Decision</button>
           <button (click)="autoLayout()">Auto Layout</button>
           <button (click)="fitToScreen()">Fit to Screen</button>
           <button (click)="showHelp.set(true)">Help</button>
@@ -425,33 +423,6 @@ export class AppComponent {
     console.log('Edge clicked:', edge);
   }
 
-  addProcessNode(): void {
-    const graph = this.currentGraph();
-    const newNode = {
-      id: `process_${Date.now()}`,
-      type: 'process',
-      data: { name: 'New Process' },
-      position: { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 }
-    };
-    this.currentGraph.set({
-      ...graph,
-      nodes: [...graph.nodes, newNode]
-    });
-  }
-
-  addDecisionNode(): void {
-    const graph = this.currentGraph();
-    const newNode = {
-      id: `decision_${Date.now()}`,
-      type: 'decision',
-      data: { name: 'New Decision' },
-      position: { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 }
-    };
-    this.currentGraph.set({
-      ...graph,
-      nodes: [...graph.nodes, newNode]
-    });
-  }
 
   autoLayout(): void {
     this.editor().applyLayout();
