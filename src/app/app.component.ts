@@ -150,7 +150,7 @@ export class AppComponent {
           icon: '▶️',
           component: null as any,
           defaultData: { name: 'Start' },
-          size: { width: 120, height: 60 }
+          size: { width: 180, height: 80 }
         },
         {
           type: 'end',
@@ -158,7 +158,7 @@ export class AppComponent {
           icon: '⏹️',
           component: null as any,
           defaultData: { name: 'End' },
-          size: { width: 120, height: 60 }
+          size: { width: 180, height: 80 }
         }
       ],
       defaultSize: { width: 180, height: 80 }
