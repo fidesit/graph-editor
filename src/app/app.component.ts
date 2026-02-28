@@ -16,6 +16,7 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
           <button (click)="addDecisionNode()">Add Decision</button>
           <button (click)="autoLayout()">Auto Layout</button>
           <button (click)="fitToScreen()">Fit to Screen</button>
+          <button (click)="showHelp.set(true)">Help</button>
         </div>
       </header>
 
@@ -35,6 +36,49 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
         <pre>{{ currentGraph() | json }}</pre>
       </aside>
     </div>
+
+    @if (showHelp()) {
+      <div class="help-overlay" (click)="showHelp.set(false)">
+        <div class="help-popup" (click)="$event.stopPropagation()">
+          <div class="help-header">
+            <h2>Keyboard & Mouse</h2>
+            <button class="close-btn" (click)="showHelp.set(false)">×</button>
+          </div>
+          <div class="help-content">
+            <section>
+              <h3>Canvas</h3>
+              <ul>
+                <li><kbd>Scroll</kbd> Zoom in/out</li>
+                <li><kbd>Drag</kbd> on canvas — Pan</li>
+              </ul>
+            </section>
+            <section>
+              <h3>Nodes</h3>
+              <ul>
+                <li><kbd>Click</kbd> Select node</li>
+                <li><kbd>Drag</kbd> Move node</li>
+                <li><kbd>Delete</kbd> Remove selected</li>
+                <li><kbd>Arrow keys</kbd> Nudge 1px (+ Shift = 10px)</li>
+              </ul>
+            </section>
+            <section>
+              <h3>Edges</h3>
+              <ul>
+                <li>Use <b>Line tool</b> in left palette</li>
+                <li><kbd>Click</kbd> source node, then target</li>
+                <li><kbd>Click</kbd> edge to select & change direction</li>
+              </ul>
+            </section>
+            <section>
+              <h3>General</h3>
+              <ul>
+                <li><kbd>Escape</kbd> Cancel / clear selection</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     .demo-container {
@@ -121,6 +165,87 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
       display: block;
       width: 100%;
       height: 100%;
+    }
+
+    .help-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .help-popup {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      max-width: 420px;
+      width: 90%;
+    }
+
+    .help-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .help-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #6b7280;
+      line-height: 1;
+    }
+
+    .close-btn:hover {
+      color: #111827;
+    }
+
+    .help-content {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .help-content section h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      margin: 0 0 8px;
+    }
+
+    .help-content ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .help-content li {
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    kbd {
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: inherit;
+      font-size: 12px;
     }
   `]
 })
@@ -210,6 +335,7 @@ export class AppComponent {
   });
 
   private editor = viewChild.required<GraphEditorComponent>('editor');
+  showHelp = signal(false);
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);
