@@ -56,6 +56,7 @@
             "styles": ["src/styles.scss"],
             "scripts": []
           },
+          "allowedCommonJsDependencies": ["dagre", "graphlib"]
           "configurations": {
             "production": {
               "budgets": [
@@ -71,6 +72,10 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "gh-pages": {
+              "baseHref": "/graph-editor/",
+              "outputHashing": "all"
             }
           },
           "defaultConfiguration": "production"

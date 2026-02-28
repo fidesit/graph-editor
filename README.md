@@ -2,9 +2,13 @@
 
 [![npm version](https://badge.fury.io/js/@utisha%2Fgraph-editor.svg)](https://www.npmjs.com/package/@utisha/graph-editor)
 [![CI](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml)
+[![Deploy](https://github.com/fidesit/graph-editor/actions/workflows/pages.yml/badge.svg)](https://fidesit.github.io/graph-editor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/fidesit/graph-editor)
 
 Configuration-driven visual graph editor for Angular 19+.
+
+**[Live Demo](https://fidesit.github.io/graph-editor)** | **[Try on StackBlitz](https://stackblitz.com/github/fidesit/graph-editor)**
 
 ![Graph Editor Demo](docs/demo.gif)
 

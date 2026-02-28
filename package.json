@@ -8,6 +8,7 @@
     "start:demo": "ng serve",
     "build": "ng build graph-editor",
     "build:prod": "ng build graph-editor --configuration production",
+    "build:demo": "ng build demo --configuration gh-pages",
     "watch": "ng build graph-editor --watch",
     "test": "ng test graph-editor",
     "test:watch": "ng test graph-editor --watch",
