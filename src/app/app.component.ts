@@ -1,6 +1,73 @@
 import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, WORKFLOW_ICONS } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition } from '@utisha/graph-editor';
+
+/**
+ * Demo icons - simple geometric shapes for demonstration.
+ * In production, consumers would provide their own branded icons.
+ */
+const DEMO_ICONS: Record<string, SvgIconDefinition> = {
+  process: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#6366f1',
+    strokeWidth: 1.75,
+    path: `M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z
+           M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z`
+  },
+  decision: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#8b5cf6',
+    strokeWidth: 1.75,
+    path: `M12 3L21 12L12 21L3 12L12 3Z
+           M12 8v4
+           M12 16h.01`
+  },
+  start: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#22c55e',
+    strokeWidth: 1.75,
+    path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z
+           M10 8l6 4-6 4V8Z`
+  },
+  end: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#ef4444',
+    strokeWidth: 1.75,
+    path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z
+           M8 8h8v8H8V8Z`
+  },
+  database: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#0ea5e9',
+    strokeWidth: 1.75,
+    path: `M12 5c4.418 0 8 1.12 8 2.5v9c0 1.38-3.582 2.5-8 2.5s-8-1.12-8-2.5v-9C4 6.12 7.582 5 12 5Z
+           M4 7.5c0 1.38 3.582 2.5 8 2.5s8-1.12 8-2.5
+           M4 12c0 1.38 3.582 2.5 8 2.5s8-1.12 8-2.5`
+  },
+  api: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#f59e0b',
+    strokeWidth: 1.75,
+    path: `M4 12h4l2-6 4 12 2-6h4
+           M2 12h2
+           M20 12h2`
+  },
+  approval: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#14b8a6',
+    strokeWidth: 1.75,
+    path: `M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2
+           M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z
+           M16 11l2 2 4-4`
+  }
+};
 
 @Component({
   selector: 'app-root',
@@ -533,16 +600,16 @@ export class AppComponent {
 
   currentTheme = signal<string>('default');
 
-  // Base node types (size will be applied from theme)
-  // Using WORKFLOW_ICONS for professional SVG icons matching utisha design spec
+  // Base node types with demo icons
+  // Consumers would provide their own branded icons matching their design system
   private readonly nodeTypes: Omit<NodeTypeDefinition, 'size'>[] = [
-    { type: 'process', label: 'Process', iconSvg: WORKFLOW_ICONS.process, component: null as any, defaultData: { name: 'New Process' } },
-    { type: 'decision', label: 'Decision', iconSvg: WORKFLOW_ICONS.decision, component: null as any, defaultData: { name: 'Decision' } },
-    { type: 'start', label: 'Start', iconSvg: WORKFLOW_ICONS.start, component: null as any, defaultData: { name: 'Start' } },
-    { type: 'end', label: 'End', iconSvg: WORKFLOW_ICONS.end, component: null as any, defaultData: { name: 'End' } },
-    { type: 'database', label: 'Database', iconSvg: WORKFLOW_ICONS.database, component: null as any, defaultData: { name: 'Database' } },
-    { type: 'api', label: 'API', iconSvg: WORKFLOW_ICONS.api, component: null as any, defaultData: { name: 'API Call' } },
-    { type: 'approval', label: 'Approval', iconSvg: WORKFLOW_ICONS.approval, component: null as any, defaultData: { name: 'Review' } }
+    { type: 'process', label: 'Process', iconSvg: DEMO_ICONS['process'], component: null as any, defaultData: { name: 'New Process' } },
+    { type: 'decision', label: 'Decision', iconSvg: DEMO_ICONS['decision'], component: null as any, defaultData: { name: 'Decision' } },
+    { type: 'start', label: 'Start', iconSvg: DEMO_ICONS['start'], component: null as any, defaultData: { name: 'Start' } },
+    { type: 'end', label: 'End', iconSvg: DEMO_ICONS['end'], component: null as any, defaultData: { name: 'End' } },
+    { type: 'database', label: 'Database', iconSvg: DEMO_ICONS['database'], component: null as any, defaultData: { name: 'Database' } },
+    { type: 'api', label: 'API', iconSvg: DEMO_ICONS['api'], component: null as any, defaultData: { name: 'API Call' } },
+    { type: 'approval', label: 'Approval', iconSvg: DEMO_ICONS['approval'], component: null as any, defaultData: { name: 'Review' } }
   ];
 
   // Computed config based on theme

@@ -21,8 +21,10 @@ Configuration-driven visual graph editor for Angular 19+.
 - 📦 **Lightweight** — Only Angular + dagre dependencies
 - 🔌 **Framework-agnostic data** — Works with any backend/state management
 - 🖼️ **Custom node images** — Use images instead of emoji icons
+- 🎨 **Custom SVG icons** — Define your own icon sets with `iconSvg` property
 - ⬜ **Multi-selection** — Box select (Shift+drag) or Ctrl+Click to select multiple items
 - ↩️ **Undo/Redo** — Full history with Ctrl+Z / Ctrl+Y
+
 ## Installation
 
 ```bash
@@ -148,7 +150,8 @@ onGraphChange(graph: Graph): void {
 interface NodeTypeDefinition {
   type: string;           // Unique identifier
   label?: string;         // Display name in palette
-  icon?: string;          // Icon (emoji or Material icon)
+  icon?: string;          // Fallback icon (emoji or text)
+  iconSvg?: SvgIconDefinition;  // Professional SVG icon (preferred)
   component: Type<any>;   // Angular component to render
   defaultData: Record<string, any>;
   size?: { width: number; height: number };
@@ -187,6 +190,52 @@ const node: GraphNode = {
 ```
 
 Supported formats: SVG, PNG, JPG, data URLs, or any valid image URL.
+
+### Custom SVG Icons
+
+Define your own SVG icons using the `SvgIconDefinition` interface. This allows you to use professional vector icons that match your design system:
+
+```typescript
+import { SvgIconDefinition, NodeTypeDefinition } from '@utisha/graph-editor';
+
+// Define your icon set
+const MY_ICONS: Record<string, SvgIconDefinition> = {
+  process: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#6366f1',  // Your brand color
+    strokeWidth: 1.75,
+    path: `M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z
+           M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06...`
+  },
+  decision: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#8b5cf6',
+    strokeWidth: 1.75,
+    path: `M12 3L21 12L12 21L3 12L12 3Z
+           M12 8v4
+           M12 16h.01`
+  },
+  start: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#22c55e',  // Semantic: green for start
+    strokeWidth: 1.75,
+    path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2...
+           M10 8l6 4-6 4V8Z`
+  }
+};
+
+// Use in node types
+const nodeTypes: NodeTypeDefinition[] = [
+  { type: 'process', label: 'Process', iconSvg: MY_ICONS.process, component: null, defaultData: { name: 'Process' } },
+  { type: 'decision', label: 'Decision', iconSvg: MY_ICONS.decision, component: null, defaultData: { name: 'Decision' } },
+  { type: 'start', label: 'Start', iconSvg: MY_ICONS.start, component: null, defaultData: { name: 'Start' } },
+];
+```
+
+**Icon priority:** `node.data['imageUrl']` → `nodeType.iconSvg` → `nodeType.defaultData['imageUrl']` → `nodeType.icon` (emoji fallback)
 
 ### Canvas Configuration
 
@@ -331,6 +380,7 @@ npm test
 - [x] ~~Keyboard shortcuts~~ — Delete, arrows, Escape, Undo/Redo
 - [x] ~~Undo/Redo~~ — Ctrl+Z / Ctrl+Y with full history
 - [x] ~~Custom node images~~ — Use `imageUrl` in node data
+- [x] ~~Custom SVG icons~~ — Define icons with `iconSvg` property
 - [ ] Minimap
 - [ ] Accessibility improvements
 

@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-02-28
+
+### Added
+
+- **iconSvg property** — New `iconSvg` property on `NodeTypeDefinition` for inline SVG icon definitions
+- **SvgIconDefinition interface** — Type-safe interface for defining custom SVG icons with `path`, `viewBox`, `fill`, `stroke`, and `strokeWidth` properties
+- **Icon helper functions** — `renderIconSvg()` and `iconToDataUrl()` utilities for working with SVG icons
+
+### Changed
+
+- **Consumer-owned icons** — Library no longer ships built-in icons. Consumers define their own icon sets matching their design system.
+- Demo app now includes sample icons showing the recommended approach
+- Palette toolbar renders inline SVG icons when `iconSvg` is defined on node types
+- Node icon priority: `node.data['imageUrl']` → `nodeType.iconSvg` → `nodeType.defaultData['imageUrl']` → `nodeType.icon` (emoji fallback)
+
+### Migration from 1.0.1
+
+If you were using `WORKFLOW_ICONS` from the library, define your own icons:
+
+```typescript
+// Before (1.0.1)
+import { WORKFLOW_ICONS } from '@utisha/graph-editor';
+{ type: 'process', iconSvg: WORKFLOW_ICONS.process, ... }
+
+// After (1.0.2)
+import { SvgIconDefinition } from '@utisha/graph-editor';
+const MY_ICONS: Record<string, SvgIconDefinition> = {
+  process: {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: '#6366f1',
+    strokeWidth: 1.75,
+    path: 'M12 15a3 3 0 1 0 0-6...'
+  }
+};
+{ type: 'process', iconSvg: MY_ICONS.process, ... }
+```
+
+---
+
 ## [1.0.1] - 2026-02-28
 
 ### Added
