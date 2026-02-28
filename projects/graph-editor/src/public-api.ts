@@ -41,3 +41,7 @@ export type {
   ValidationResult,
   ContextMenuEvent
 } from './lib/graph-editor.config';
+
+// Workflow icons
+export type { SvgIconDefinition, WorkflowIconName } from './lib/icons/workflow-icons';
+export { WORKFLOW_ICONS, getWorkflowIcon, renderIconSvg, iconToDataUrl } from './lib/icons/workflow-icons';

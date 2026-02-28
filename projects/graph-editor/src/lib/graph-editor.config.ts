@@ -1,5 +1,6 @@
 import {Type} from '@angular/core';
 import {EdgeStyle, Graph, Position} from './graph.model';
+import {SvgIconDefinition} from './icons/workflow-icons';
 
 export interface GraphEditorConfig {
   /** Node type definitions */
@@ -48,8 +49,16 @@ export interface NodeTypeDefinition {
   /** Display name in palette */
   label?: string;
 
-  /** Icon identifier (Material Icons, custom, etc.) */
+  /** Icon identifier (emoji, text, or symbol for fallback display) */
   icon?: string;
+
+  /**
+   * SVG icon definition for professional node icons.
+   * When set, renders an SVG icon in the node and palette instead of text/emoji.
+   * Use WORKFLOW_ICONS from '@utisha/graph-editor' or provide custom SvgIconDefinition.
+   * @example iconSvg: WORKFLOW_ICONS.process
+   */
+  iconSvg?: SvgIconDefinition;
 
   /** Palette category/group */
   category?: string;

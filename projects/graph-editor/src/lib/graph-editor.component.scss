@@ -43,6 +43,12 @@
   object-fit: contain;
 }
 
+.palette-icon-svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
 .palette-item:focus-visible {
   outline: 2px solid var(--indigo-400, #818cf8);
   outline-offset: 2px;

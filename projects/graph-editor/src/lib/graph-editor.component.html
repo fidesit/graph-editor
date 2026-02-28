@@ -33,7 +33,21 @@
             [attr.title]="nodeType.label || nodeType.type"
             (click)="addNode(nodeType.type)"
           >
-            @if (nodeType.defaultData['imageUrl']) {
+            @if (nodeType.iconSvg) {
+              <svg
+                class="palette-icon-svg"
+                [attr.viewBox]="nodeType.iconSvg.viewBox || '0 0 24 24'"
+                [attr.fill]="nodeType.iconSvg.fill || 'none'"
+                [attr.stroke]="nodeType.iconSvg.stroke || '#1D6A96'"
+                [attr.stroke-width]="nodeType.iconSvg.strokeWidth || 2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                @for (pathData of splitIconPaths(nodeType.iconSvg.path); track $index) {
+                  <path [attr.d]="pathData"/>
+                }
+              </svg>
+            } @else if (nodeType.defaultData['imageUrl']) {
               <img
                 class="palette-icon-img"
                 [src]="nodeType.defaultData['imageUrl']"

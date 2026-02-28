@@ -15,8 +15,9 @@ import {
 } from '@angular/core';
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
 import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
-import {ContextMenuEvent, GraphEditorConfig, SelectionState, ValidationResult} from './graph-editor.config';
+import {ContextMenuEvent, GraphEditorConfig, NodeTypeDefinition, SelectionState, ValidationResult} from './graph-editor.config';
 import {GraphHistoryService} from './services/graph-history.service';
+import {SvgIconDefinition} from './icons/workflow-icons';
 
 /**
  * Main graph editor component.
@@ -1276,8 +1277,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   /**
-   * Get custom image URL for a node.
-   * Checks node.data['imageUrl'] first, then falls back to nodeType.defaultData['imageUrl'].
+   * Get image URL for a node icon.
+   * Priority: node.data['imageUrl'] > nodeType.iconSvg (converted to data URL) > nodeType.defaultData['imageUrl']
    * Returns null if no image is configured (will render text icon instead).
    */
   getNodeImage(node: GraphNode): string | null {
@@ -1285,12 +1286,71 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (node.data['imageUrl']) {
       return node.data['imageUrl'] as string;
     }
-    // Fall back to node type default
+
     const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
+
+    // Check for iconSvg definition (convert to data URL)
+    if (nodeConfig?.iconSvg) {
+      return this.svgIconToDataUrl(nodeConfig.iconSvg);
+    }
+
+    // Fall back to node type default imageUrl
     if (nodeConfig?.defaultData['imageUrl']) {
       return nodeConfig.defaultData['imageUrl'] as string;
     }
+
     return null;
+  }
+
+  /**
+   * Convert an SvgIconDefinition to a data URL for use in <image> elements.
+   * Caches results to avoid repeated conversion.
+   */
+  private svgIconCache = new Map<SvgIconDefinition, string>();
+
+  private svgIconToDataUrl(icon: SvgIconDefinition): string {
+    // Check cache first
+    const cached = this.svgIconCache.get(icon);
+    if (cached) return cached;
+
+    const viewBox = icon.viewBox || '0 0 24 24';
+    const fill = icon.fill || 'none';
+    const stroke = icon.stroke || '#1D6A96';
+    const strokeWidth = icon.strokeWidth || 2;
+
+    // Build SVG markup with proper path handling
+    const paths = icon.path
+      .split(/\n/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+      .map(p => `<path d="${p}"/>`)
+      .join('');
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="${viewBox}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+    // Encode as data URL
+    const dataUrl = `data:image/svg+xml;base64,${btoa(svg)}`;
+    this.svgIconCache.set(icon, dataUrl);
+    return dataUrl;
+  }
+
+  /**
+   * Get the SVG icon definition for a node type (for palette rendering).
+   * Returns null if no iconSvg is configured.
+   */
+  getNodeTypeSvgIcon(nodeType: NodeTypeDefinition): SvgIconDefinition | null {
+    return nodeType.iconSvg || null;
+  }
+
+  /**
+   * Split SVG path data by newlines for template iteration.
+   * Used to render multiple path elements from a single path string.
+   */
+  splitIconPaths(pathData: string): string[] {
+    return pathData
+      .split(/\n/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
   }
 
   /**

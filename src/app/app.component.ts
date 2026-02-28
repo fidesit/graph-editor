@@ -1,6 +1,6 @@
 import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, WORKFLOW_ICONS } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-root',
@@ -534,17 +534,15 @@ export class AppComponent {
   currentTheme = signal<string>('default');
 
   // Base node types (size will be applied from theme)
+  // Using WORKFLOW_ICONS for professional SVG icons matching utisha design spec
   private readonly nodeTypes: Omit<NodeTypeDefinition, 'size'>[] = [
-    { type: 'process', label: 'Process', icon: '⚙️', component: null as any, defaultData: { name: 'New Process' } },
-    { type: 'decision', label: 'Decision', icon: '🔀', component: null as any, defaultData: { name: 'Decision' } },
-    { type: 'start', label: 'Start', icon: '▶️', component: null as any, defaultData: { name: 'Start' } },
-    { type: 'end', label: 'End', icon: '⏹️', component: null as any, defaultData: { name: 'End' } },
-    // Example: node type with custom SVG image instead of emoji
-    { type: 'database', label: 'Database', icon: '🗄️', component: null as any, defaultData: {
-      name: 'Database',
-      // Cylinder/database SVG icon
-      imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiMzYjgyZjYiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48ZWxsaXBzZSBjeD0iMTIiIGN5PSI1IiByeD0iOSIgcnk9IjMiLz48cGF0aCBkPSJNMjEgMTJjMCAxLjY2LTQgMy05IDNzLTktMS4zNC05LTMiLz48cGF0aCBkPSJNMyA1djE0YzAgMS42NiA0IDMgOSAzczktMS4zNCA5LTNWNSIvPjwvc3ZnPg=='
-    }}
+    { type: 'process', label: 'Process', iconSvg: WORKFLOW_ICONS.process, component: null as any, defaultData: { name: 'New Process' } },
+    { type: 'decision', label: 'Decision', iconSvg: WORKFLOW_ICONS.decision, component: null as any, defaultData: { name: 'Decision' } },
+    { type: 'start', label: 'Start', iconSvg: WORKFLOW_ICONS.start, component: null as any, defaultData: { name: 'Start' } },
+    { type: 'end', label: 'End', iconSvg: WORKFLOW_ICONS.end, component: null as any, defaultData: { name: 'End' } },
+    { type: 'database', label: 'Database', iconSvg: WORKFLOW_ICONS.database, component: null as any, defaultData: { name: 'Database' } },
+    { type: 'api', label: 'API', iconSvg: WORKFLOW_ICONS.api, component: null as any, defaultData: { name: 'API Call' } },
+    { type: 'approval', label: 'Approval', iconSvg: WORKFLOW_ICONS.approval, component: null as any, defaultData: { name: 'Review' } }
   ];
 
   // Computed config based on theme
@@ -573,16 +571,21 @@ export class AppComponent {
   currentGraph = signal<Graph>({
     nodes: [
       { id: 'start', type: 'start', data: { name: 'Start' }, position: { x: 100, y: 100 } },
-      { id: 'process1', type: 'process', data: { name: 'Process Data' }, position: { x: 300, y: 100 } },
-      { id: 'decision1', type: 'decision', data: { name: 'Is Valid?' }, position: { x: 500, y: 100 } },
-      { id: 'end', type: 'end', data: { name: 'End' }, position: { x: 700, y: 100 } },
-      // Node with custom image
-      { id: 'db1', type: 'database', data: { name: 'Users DB' }, position: { x: 300, y: 250 } }
+      { id: 'process1', type: 'process', data: { name: 'Fetch Data' }, position: { x: 300, y: 100 } },
+      { id: 'db1', type: 'database', data: { name: 'Users DB' }, position: { x: 300, y: 250 } },
+      { id: 'decision1', type: 'decision', data: { name: 'Valid?' }, position: { x: 500, y: 100 } },
+      { id: 'api1', type: 'api', data: { name: 'Send Update' }, position: { x: 700, y: 50 } },
+      { id: 'approval1', type: 'approval', data: { name: 'Review' }, position: { x: 700, y: 180 } },
+      { id: 'end', type: 'end', data: { name: 'Complete' }, position: { x: 900, y: 100 } }
     ],
     edges: [
       { id: 'e1', source: 'start', target: 'process1' },
-      { id: 'e2', source: 'process1', target: 'decision1' },
-      { id: 'e3', source: 'decision1', target: 'end' }
+      { id: 'e2', source: 'process1', target: 'db1' },
+      { id: 'e3', source: 'db1', target: 'decision1' },
+      { id: 'e4', source: 'decision1', target: 'api1' },
+      { id: 'e5', source: 'decision1', target: 'approval1' },
+      { id: 'e6', source: 'api1', target: 'end' },
+      { id: 'e7', source: 'approval1', target: 'end' }
     ]
   });
 
