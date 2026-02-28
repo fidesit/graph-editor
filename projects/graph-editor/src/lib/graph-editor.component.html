@@ -351,15 +351,4 @@
       >→</button>
     </div>
   }
-  <!-- Validation errors -->
-  @if (validationResult() && !validationResult()!.valid) {
-    <div class="validation-panel">
-      <h4>Validation Errors</h4>
-      @for (error of validationResult()!.errors; track error.rule) {
-        <div class="error-item" [class.warning]="error.severity === 'warning'">
-          {{ error.message }}
-        </div>
-      }
-    </div>
-  }
 </div>

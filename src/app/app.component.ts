@@ -1,6 +1,6 @@
 import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError } from '@utisha/graph-editor';
 
 /**
  * Demo icons - simple geometric shapes for demonstration.
@@ -69,6 +69,70 @@ const DEMO_ICONS: Record<string, SvgIconDefinition> = {
   }
 };
 
+/**
+ * Demo validation rules - basic workflow validation.
+ */
+const DEMO_VALIDATION_RULES: ValidationRule[] = [
+  // Rule 1: Must have exactly one entry point (node with no incoming edges)
+  {
+    id: 'single-entry-point',
+    message: 'Workflow must have exactly one entry point',
+    validator: (graph) => {
+      if (graph.nodes.length === 0) return [];
+      const entryPoints = graph.nodes.filter(node =>
+        !graph.edges.some(edge => edge.target === node.id)
+      );
+      if (entryPoints.length === 0) {
+        return [{ rule: 'single-entry-point', message: 'Workflow must have at least one entry point (a node with no incoming edges)', severity: 'error' }];
+      }
+      if (entryPoints.length > 1) {
+        return entryPoints.map(node => ({
+          rule: 'single-entry-point',
+          message: `Node "${node.data['name'] || node.id}" has no incoming edges. Connect it to another node or remove it.`,
+          nodeId: node.id,
+          severity: 'error'
+        }));
+      }
+      return [];
+    }
+  },
+  // Rule 2: Must have at least one end point (node with no outgoing edges)
+  {
+    id: 'has-end-point',
+    message: 'Workflow should have at least one end point',
+    validator: (graph) => {
+      if (graph.nodes.length === 0) return [];
+      const endPoints = graph.nodes.filter(node =>
+        !graph.edges.some(edge => edge.source === node.id)
+      );
+      if (endPoints.length === 0) {
+        return [{ rule: 'has-end-point', message: 'Workflow should have at least one end point (a node with no outgoing edges)', severity: 'warning' }];
+      }
+      return [];
+    }
+  },
+  // Rule 3: No orphan nodes (nodes must be connected)
+  {
+    id: 'no-orphans',
+    message: 'All nodes must be connected',
+    validator: (graph) => {
+      if (graph.nodes.length <= 1) return [];
+      const connectedNodes = new Set<string>();
+      graph.edges.forEach(edge => {
+        connectedNodes.add(edge.source);
+        connectedNodes.add(edge.target);
+      });
+      const orphans = graph.nodes.filter(node => !connectedNodes.has(node.id));
+      return orphans.map(node => ({
+        rule: 'no-orphans',
+        message: `Node "${node.data['name'] || node.id}" is not connected to any other node`,
+        nodeId: node.id,
+        severity: 'error'
+      }));
+    }
+  }
+];
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -104,6 +168,13 @@ const DEMO_ICONS: Record<string, SvgIconDefinition> = {
             </svg>
             <span>Fit</span>
           </button>
+          <button class="action-btn" (click)="validate()" title="Validate">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 12l2 2 4-4"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+            <span>Validate</span>
+          </button>
           <button class="action-btn help-btn" (click)="showHelp.set(true)" title="Help">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -113,6 +184,32 @@ const DEMO_ICONS: Record<string, SvgIconDefinition> = {
           </button>
         </div>
       </header>
+
+      <!-- Validation Panel -->
+      @if (validationResult(); as result) {
+        @if (!result.valid || result.errors.length > 0) {
+          <div class="validation-panel" [class.has-errors]="!result.valid">
+            <div class="validation-header">
+              <span class="validation-icon">{{ result.valid ? '⚠️' : '❌' }}</span>
+              <span class="validation-title">
+                {{ result.valid ? 'Warnings' : 'Validation Errors' }} ({{ result.errors.length }})
+              </span>
+              <button class="validation-close" (click)="clearValidation()" title="Dismiss">×</button>
+            </div>
+            <ul class="validation-list">
+              @for (error of result.errors; track error.rule + (error.nodeId ?? '')) {
+                <li class="validation-item" [class.warning]="error.severity === 'warning'">
+                  <span class="validation-item-icon">{{ error.severity === 'warning' ? '⚠️' : '●' }}</span>
+                  <span class="validation-item-message">{{ error.message }}</span>
+                  @if (error.nodeId) {
+                    <button class="validation-item-link" (click)="focusNode(error.nodeId)">Show</button>
+                  }
+                </li>
+              }
+            </ul>
+          </div>
+        }
+      }
 
       <main class="demo-main">
         <graph-editor
@@ -235,7 +332,7 @@ const DEMO_ICONS: Record<string, SvgIconDefinition> = {
   styles: [`
     .demo-container {
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto auto 1fr;
       grid-template-columns: 1fr 300px;
       height: 100vh;
       gap: 0;
@@ -587,6 +684,98 @@ const DEMO_ICONS: Record<string, SvgIconDefinition> = {
       width: 18px;
       text-align: center;
     }
+
+    /* Validation Panel */
+    .validation-panel {
+      grid-column: 1 / -1;
+      background: #fef3c7;
+      border-bottom: 1px solid #fcd34d;
+      padding: 8px 16px;
+      font-size: 13px;
+    }
+
+    .validation-panel.has-errors {
+      background: #fef2f2;
+      border-bottom-color: #fca5a5;
+    }
+
+    .validation-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .validation-icon {
+      font-size: 14px;
+    }
+
+    .validation-title {
+      font-weight: 600;
+      color: #92400e;
+    }
+
+    .validation-panel.has-errors .validation-title {
+      color: #991b1b;
+    }
+
+    .validation-close {
+      margin-left: auto;
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: #9ca3af;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .validation-close:hover {
+      color: #6b7280;
+    }
+
+    .validation-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .validation-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 0;
+      color: #991b1b;
+    }
+
+    .validation-item.warning {
+      color: #92400e;
+    }
+
+    .validation-item-icon {
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+
+    .validation-item-message {
+      flex: 1;
+    }
+
+    .validation-item-link {
+      background: none;
+      border: none;
+      color: #2563eb;
+      cursor: pointer;
+      font-size: 12px;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    .validation-item-link:hover {
+      color: #1d4ed8;
+    }
   `]
 })
 export class AppComponent {
@@ -631,7 +820,8 @@ export class AppComponent {
         pan: { enabled: true }
       },
       palette: { enabled: true, position: 'left' },
-      theme: { shadows: theme.shadows }
+      theme: { shadows: theme.shadows },
+      validation: { validators: DEMO_VALIDATION_RULES, validateOnChange: false }
     };
   });
 
@@ -659,6 +849,7 @@ export class AppComponent {
   private editor = viewChild.required<GraphEditorComponent>('editor');
   showHelp = signal(false);
   contextMenu = signal<ContextMenuEvent | null>(null);
+  validationResult = signal<ValidationResult | null>(null);
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);
@@ -684,6 +875,19 @@ export class AppComponent {
 
   fitToScreen(): void {
     this.editor().fitToScreen();
+  }
+
+  validate(): void {
+    const result = this.editor().validate();
+    this.validationResult.set(result);
+  }
+
+  clearValidation(): void {
+    this.validationResult.set(null);
+  }
+
+  focusNode(nodeId: string): void {
+    this.editor().selectNode(nodeId);
   }
 
   // Context menu handlers

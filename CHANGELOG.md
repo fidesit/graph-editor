@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-02-28
+
+### Changed
+
+- **Validation panel removed from library** — The built-in validation error panel has been removed from the library template. Consumers should implement their own validation UI for full control over styling and behavior.
+- **Demo app now includes validation example** — Shows how to build a custom validation panel with:
+  - Validate button in header toolbar
+  - Collapsible error/warning panel
+  - "Show" buttons to focus on problematic nodes
+  - Sample validation rules (single entry point, has end point, no orphans)
+
+### Migration from 1.0.2
+
+If you relied on the library's built-in validation panel, add your own UI that consumes `validationResult()` or calls `validate()` on the editor component. See the demo app for a reference implementation.
+
 ## [1.0.2] - 2026-02-28
 
 ### Added
