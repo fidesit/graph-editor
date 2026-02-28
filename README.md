@@ -14,10 +14,10 @@ Configuration-driven visual graph editor for Angular 19+.
 
 ## Features
 
-- 🎨 **Fully customizable** — Bring your own node/edge components
 - ⚙️ **Configuration-driven** — No hardcoded domain logic
 - 🎯 **Type-safe** — Full TypeScript support with strict mode
-- 🎭 **Themeable** — CSS custom properties for complete style control
+- 🎭 **Themeable** — CSS custom properties + optional shadows
+- ⌨️ **Keyboard shortcuts** — Delete, arrow keys, escape built-in
 - 📦 **Lightweight** — Only Angular + dagre dependencies
 - 🔌 **Framework-agnostic data** — Works with any backend/state management
 
@@ -132,11 +132,13 @@ onGraphChange(graph: Graph): void {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `nodes` | `NodesConfig` | Node type definitions |
+| `nodes` | `NodesConfig` | Node type definitions + icon position |
 | `edges` | `EdgesConfig` | Edge configuration |
 | `canvas` | `CanvasConfig` | Canvas behavior (grid, zoom, pan) |
 | `validation` | `ValidationConfig` | Validation rules |
 | `palette` | `PaletteConfig` | Node palette configuration |
+| `layout` | `LayoutConfig` | Layout algorithm (dagre) |
+| `theme` | `ThemeConfig` | Visual theme (shadows, CSS variables) |
 
 ### Node Type Definition
 
@@ -185,6 +187,7 @@ interface CanvasConfig {
 | `config` | `GraphEditorConfig` | Editor configuration (required) |
 | `graph` | `Graph` | Current graph data |
 | `readonly` | `boolean` | Disable editing |
+| `visualizationMode` | `boolean` | Display only mode |
 
 ### Outputs
 
@@ -194,8 +197,10 @@ interface CanvasConfig {
 | `nodeClick` | `EventEmitter<GraphNode>` | Node clicked |
 | `nodeDoubleClick` | `EventEmitter<GraphNode>` | Node double-clicked |
 | `edgeClick` | `EventEmitter<GraphEdge>` | Edge clicked |
+| `edgeDoubleClick` | `EventEmitter<GraphEdge>` | Edge double-clicked |
 | `selectionChange` | `EventEmitter<SelectionState>` | Selection changed |
 | `validationChange` | `EventEmitter<ValidationResult>` | Validation state changed |
+| `contextMenu` | `EventEmitter<ContextMenuEvent>` | Right-click on canvas/node/edge |
 
 ### Methods
 
@@ -288,9 +293,9 @@ npm test
 
 - [ ] Custom node components via `foreignObject`
 - [ ] Port-based connections with type checking
-- [ ] Context menus
+- [ ] Context menus (event emits, UI not built-in)
 - [ ] Multi-select with box selection
-- [ ] Keyboard shortcuts
+- [x] ~~Keyboard shortcuts~~ — Implemented (Del, arrows, Esc)
 - [ ] Undo/redo
 - [ ] Minimap
 - [ ] Accessibility improvements
@@ -301,4 +306,4 @@ Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md)
 
 ## License
 
-[MIT](LICENSE) © Utisha
+[MIT](LICENSE) © Utisha / Fides IT
