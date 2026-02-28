@@ -98,7 +98,7 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, Con
               <ul>
                 <li><kbd>Click</kbd> <span>Select</span></li>
                 <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
-                <li><kbd>Drag</kbd> <span>Move</span></li>
+                <li><kbd>Drag</kbd> <span>Move (all if multi-selected)</span></li>
                 <li><kbd>Del</kbd> <span>Remove selected</span></li>
                 <li><kbd>↑↓←→</kbd> <span>Nudge (Shift: 10px)</span></li>
               </ul>

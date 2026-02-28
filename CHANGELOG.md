@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Undo/Redo** — Full history support with Ctrl+Z (undo) and Ctrl+Y or Ctrl+Shift+Z (redo)
 - **Batch delete** — Delete key removes all selected nodes and edges in one atomic operation (single undo step)
 - **Arrow key multi-move** — Arrow keys move all selected nodes together
+- **Multi-node drag** — Drag any selected node to move all selected nodes together
 
 ### Changed
 
@@ -22,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extracted styles to separate `.scss` file (234 lines)
 - Extracted `GraphHistoryService` for undo/redo logic
 - Switched tests to ChromeHeadless for ~2x faster execution
+
+### Fixed
+
+- **Auto-layout edge ports** — Edge attachment points are now recalculated after applying layout, ensuring edges connect to the most logical ports based on node positions
 
 ## [1.0.0] - 2026-02-28
 

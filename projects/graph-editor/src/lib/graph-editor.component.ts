@@ -83,6 +83,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Dragging state
   private draggedNode: GraphNode | null = null;
   private dragOffset: Position = { x: 0, y: 0 };
+  private draggedNodeOffsets: Map<string, Position> = new Map(); // For multi-node drag
   private isPanning = false;
   private lastMousePos: Position = { x: 0, y: 0 };
   private draggedEdge: { edge: GraphEdge; endpoint: 'source' | 'target' } | null = null;
@@ -542,7 +543,17 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       };
     });
 
-    this.internalGraph.set({ ...graph, nodes: updatedNodes });
+    // Recalculate edge ports based on new node positions
+    const updatedEdges = graph.edges.map(edge => {
+      const sourceNode = updatedNodes.find(n => n.id === edge.source);
+      const targetNode = updatedNodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) return edge;
+      const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+      const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+      return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
+    });
+
+    this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
     this.emitGraphChange();
 
     setTimeout(() => this.fitToScreen());
@@ -675,44 +686,70 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
-      let x = mouseX - this.dragOffset.x;
-      let y = mouseY - this.dragOffset.y;
 
-      // Smart snap to grid
-      if (this.config.canvas?.grid?.snap) {
-        const gridSize = this.config.canvas.grid.size || 20;
-        const snapThreshold = gridSize / 4;
-
-        const snapX = Math.round(x / gridSize) * gridSize;
-        const snapY = Math.round(y / gridSize) * gridSize;
-
-        if (Math.abs(x - snapX) < snapThreshold) x = snapX;
-        if (Math.abs(y - snapY) < snapThreshold) y = snapY;
-      }
-
-      // Atomic update: node position + edge port recalculation in one graph set
       const graph = this.internalGraph();
-      const nodeIndex = graph.nodes.findIndex(n => n.id === this.draggedNode!.id);
-      if (nodeIndex !== -1) {
-        const updatedNodes = [...graph.nodes];
-        updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], position: { x, y } };
+      const updatedNodes = [...graph.nodes];
+      const movedNodeIds = new Set<string>();
 
-        // Recalculate ports for all edges connected to this node
-        const draggedId = this.draggedNode.id;
-        const updatedEdges = graph.edges.map(edge => {
-          if (edge.source !== draggedId && edge.target !== draggedId) return edge;
-          const sourceNode = updatedNodes.find(n => n.id === edge.source);
-          const targetNode = updatedNodes.find(n => n.id === edge.target);
-          if (!sourceNode || !targetNode) return edge;
-          const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-          const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-          if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-          return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-        });
+      // Check if we're dragging multiple selected nodes
+      if (this.draggedNodeOffsets.size > 1) {
+        // Multi-node drag: move all selected nodes
+        for (const [nodeId, offset] of this.draggedNodeOffsets) {
+          const nodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
+          if (nodeIndex === -1) continue;
 
-        this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
-        this.emitGraphChange();
+          let x = mouseX - offset.x;
+          let y = mouseY - offset.y;
+
+          // Smart snap to grid
+          if (this.config.canvas?.grid?.snap) {
+            const gridSize = this.config.canvas.grid.size || 20;
+            const snapThreshold = gridSize / 4;
+            const snapX = Math.round(x / gridSize) * gridSize;
+            const snapY = Math.round(y / gridSize) * gridSize;
+            if (Math.abs(x - snapX) < snapThreshold) x = snapX;
+            if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+          }
+
+          updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], position: { x, y } };
+          movedNodeIds.add(nodeId);
+        }
+      } else {
+        // Single node drag
+        let x = mouseX - this.dragOffset.x;
+        let y = mouseY - this.dragOffset.y;
+
+        // Smart snap to grid
+        if (this.config.canvas?.grid?.snap) {
+          const gridSize = this.config.canvas.grid.size || 20;
+          const snapThreshold = gridSize / 4;
+          const snapX = Math.round(x / gridSize) * gridSize;
+          const snapY = Math.round(y / gridSize) * gridSize;
+          if (Math.abs(x - snapX) < snapThreshold) x = snapX;
+          if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+        }
+
+        const nodeIndex = updatedNodes.findIndex(n => n.id === this.draggedNode!.id);
+        if (nodeIndex !== -1) {
+          updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], position: { x, y } };
+          movedNodeIds.add(this.draggedNode!.id);
+        }
       }
+
+      // Recalculate ports for all edges connected to moved nodes
+      const updatedEdges = graph.edges.map(edge => {
+        if (!movedNodeIds.has(edge.source) && !movedNodeIds.has(edge.target)) return edge;
+        const sourceNode = updatedNodes.find(n => n.id === edge.source);
+        const targetNode = updatedNodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) return edge;
+        const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+        const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+        if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
+        return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
+      });
+
+      this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
+      this.emitGraphChange();
     } else if (this.draggedEdge) {
       // Edge reconnection - find hovered node and closest port
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
@@ -851,6 +888,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     this.isPanning = false;
     this.draggedNode = null;
+    this.draggedNodeOffsets.clear();
     this.draggedEdge = null;
     this.hoveredNodeId = null;
     this.hoveredPort = null;
@@ -873,6 +911,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       x: mouseX - node.position.x,
       y: mouseY - node.position.y
     };
+
+    // If this node is part of a multi-selection, calculate offsets for all selected nodes
+    const sel = this.selection();
+    this.draggedNodeOffsets.clear();
+    if (sel.nodes.includes(node.id) && sel.nodes.length > 1) {
+      const graph = this.internalGraph();
+      for (const nodeId of sel.nodes) {
+        const n = graph.nodes.find(nd => nd.id === nodeId);
+        if (n) {
+          this.draggedNodeOffsets.set(nodeId, {
+            x: mouseX - n.position.x,
+            y: mouseY - n.position.y
+          });
+        }
+      }
+    }
   }
 
   onNodeClick(event: MouseEvent, node: GraphNode): void {
