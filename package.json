@@ -1,0 +1,47 @@
+{
+  "name": "graph-editor-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "start:demo": "ng serve",
+    "build": "ng build graph-editor",
+    "build:prod": "ng build graph-editor --configuration production",
+    "watch": "ng build graph-editor --watch",
+    "test": "ng test graph-editor",
+    "test:watch": "ng test graph-editor --watch",
+    "test:coverage": "ng test graph-editor --code-coverage",
+    "lint": "ng lint",
+    "prepublishOnly": "npm run build:prod"
+  },
+  "dependencies": {
+    "@angular/animations": "^19.0.0",
+    "@angular/common": "^19.0.0",
+    "@angular/compiler": "^19.0.0",
+    "@angular/core": "^19.0.0",
+    "@angular/forms": "^19.0.0",
+    "@angular/platform-browser": "^19.0.0",
+    "@angular/platform-browser-dynamic": "^19.0.0",
+    "@angular/router": "^19.0.0",
+    "dagre": "^0.8.5",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0",
+    "zone.js": "~0.15.0"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^19.0.0",
+    "@angular/cli": "^19.0.0",
+    "@angular/compiler-cli": "^19.0.0",
+    "@types/dagre": "^0.7.54",
+    "@types/jasmine": "~5.1.0",
+    "jasmine-core": "~5.4.0",
+    "karma": "~6.4.0",
+    "karma-chrome-launcher": "~3.2.0",
+    "karma-coverage": "~2.2.0",
+    "karma-jasmine": "~5.1.0",
+    "karma-jasmine-html-reporter": "~2.1.0",
+    "ng-packagr": "^19.0.0",
+    "typescript": "~5.6.0"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@anthropic-ai/graph-editor",
+  "version": "1.0.0-beta.1",
+  "description": "Configuration-driven visual graph editor for Angular 19+",
+  "author": "Utisha",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fidesit/graph-editor.git"
+  },
+  "homepage": "https://github.com/fidesit/graph-editor#readme",
+  "bugs": {
+    "url": "https://github.com/fidesit/graph-editor/issues"
+  },
+  "keywords": [
+    "angular",
+    "graph",
+    "editor",
+    "visual",
+    "workflow",
+    "diagram",
+    "canvas",
+    "svg",
+    "directed-graph",
+    "dag",
+    "node-editor"
+  ],
+  "peerDependencies": {
+    "@angular/common": "^19.0.0",
+    "@angular/core": "^19.0.0"
+  },
+  "dependencies": {
+    "dagre": "^0.8.5",
+    "tslib": "^2.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
+}
