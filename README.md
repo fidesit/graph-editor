@@ -293,7 +293,7 @@ npm test
 
 - [ ] Custom node components via `foreignObject`
 - [ ] Port-based connections with type checking
-- [ ] Context menus (event emits, UI not built-in)
+- [x] ~~Context menus~~ — Event emits on right-click (see demo for example UI)
 - [ ] Multi-select with box selection
 - [x] ~~Keyboard shortcuts~~ — Implemented (Del, arrows, Esc)
 - [ ] Undo/redo

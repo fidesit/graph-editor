@@ -1,6 +1,6 @@
 import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent } from '@utisha/graph-editor';
 
 @Component({
   selector: 'app-root',
@@ -55,6 +55,7 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition } fr
           (graphChange)="onGraphChange($event)"
           (nodeClick)="onNodeClick($event)"
           (edgeClick)="onEdgeClick($event)"
+          (contextMenu)="onContextMenu($event)"
         />
       </main>
 
@@ -118,6 +119,44 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition } fr
               </ul>
             </div>
           </div>
+        </div>
+      </div>
+    }
+
+    @if (contextMenu()) {
+      <div class="context-menu-overlay" (click)="closeContextMenu()">
+        <div
+          class="context-menu"
+          [style.left.px]="contextMenu()!.position.x"
+          [style.top.px]="contextMenu()!.position.y"
+          (click)="$event.stopPropagation()"
+        >
+          @if (contextMenu()!.type === 'canvas') {
+            <button class="context-menu-item" (click)="addNodeAtPosition()">
+              <span class="context-menu-icon">➕</span>
+              Add Node Here
+            </button>
+          }
+          @if (contextMenu()!.type === 'node') {
+            <button class="context-menu-item" (click)="duplicateNode()">
+              <span class="context-menu-icon">📋</span>
+              Duplicate
+            </button>
+            <button class="context-menu-item danger" (click)="deleteNode()">
+              <span class="context-menu-icon">🗑️</span>
+              Delete Node
+            </button>
+          }
+          @if (contextMenu()!.type === 'edge') {
+            <button class="context-menu-item" (click)="reverseEdge()">
+              <span class="context-menu-icon">🔄</span>
+              Reverse Direction
+            </button>
+            <button class="context-menu-item danger" (click)="deleteEdge()">
+              <span class="context-menu-icon">🗑️</span>
+              Delete Edge
+            </button>
+          }
         </div>
       </div>
     }
@@ -421,6 +460,62 @@ import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition } fr
       color: #374151;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
+
+    .context-menu-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+    }
+
+    .context-menu {
+      position: fixed;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      border: 1px solid #e5e7eb;
+      padding: 4px;
+      min-width: 160px;
+      animation: contextMenuIn 0.1s ease-out;
+    }
+
+    @keyframes contextMenuIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .context-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      border: none;
+      background: none;
+      font-size: 13px;
+      color: #374151;
+      cursor: pointer;
+      border-radius: 4px;
+      text-align: left;
+      transition: background 0.1s;
+    }
+
+    .context-menu-item:hover {
+      background: #f3f4f6;
+    }
+
+    .context-menu-item.danger {
+      color: #dc2626;
+    }
+
+    .context-menu-item.danger:hover {
+      background: #fef2f2;
+    }
+
+    .context-menu-icon {
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+    }
   `]
 })
 export class AppComponent {
@@ -481,6 +576,7 @@ export class AppComponent {
 
   private editor = viewChild.required<GraphEditorComponent>('editor');
   showHelp = signal(false);
+  contextMenu = signal<ContextMenuEvent | null>(null);
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);
@@ -506,5 +602,86 @@ export class AppComponent {
 
   fitToScreen(): void {
     this.editor().fitToScreen();
+  }
+
+  // Context menu handlers
+  onContextMenu(event: ContextMenuEvent): void {
+    this.contextMenu.set(event);
+  }
+
+  closeContextMenu(): void {
+    this.contextMenu.set(null);
+  }
+
+  addNodeAtPosition(): void {
+    const menu = this.contextMenu();
+    if (!menu) return;
+    const graph = this.currentGraph();
+    const newNode = {
+      id: `node_${Date.now()}`,
+      type: 'process',
+      data: { name: 'New Process' },
+      position: menu.position
+    };
+    this.currentGraph.set({
+      ...graph,
+      nodes: [...graph.nodes, newNode]
+    });
+    this.closeContextMenu();
+  }
+
+  duplicateNode(): void {
+    const menu = this.contextMenu();
+    if (!menu?.nodeId) return;
+    const graph = this.currentGraph();
+    const node = graph.nodes.find(n => n.id === menu.nodeId);
+    if (!node) return;
+    const newNode = {
+      ...node,
+      id: `node_${Date.now()}`,
+      position: { x: node.position.x + 40, y: node.position.y + 40 }
+    };
+    this.currentGraph.set({
+      ...graph,
+      nodes: [...graph.nodes, newNode]
+    });
+    this.closeContextMenu();
+  }
+
+  deleteNode(): void {
+    const menu = this.contextMenu();
+    if (!menu?.nodeId) return;
+    const graph = this.currentGraph();
+    this.currentGraph.set({
+      nodes: graph.nodes.filter(n => n.id !== menu.nodeId),
+      edges: graph.edges.filter(e => e.source !== menu.nodeId && e.target !== menu.nodeId)
+    });
+    this.closeContextMenu();
+  }
+
+  reverseEdge(): void {
+    const menu = this.contextMenu();
+    if (!menu?.edgeId) return;
+    const graph = this.currentGraph();
+    this.currentGraph.set({
+      ...graph,
+      edges: graph.edges.map(e => 
+        e.id === menu.edgeId
+          ? { ...e, source: e.target, target: e.source }
+          : e
+      )
+    });
+    this.closeContextMenu();
+  }
+
+  deleteEdge(): void {
+    const menu = this.contextMenu();
+    if (!menu?.edgeId) return;
+    const graph = this.currentGraph();
+    this.currentGraph.set({
+      ...graph,
+      edges: graph.edges.filter(e => e.id !== menu.edgeId)
+    });
+    this.closeContextMenu();
   }
 }

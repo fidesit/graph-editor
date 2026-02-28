@@ -1379,7 +1379,41 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
-    // TODO: Show context menu
+    
+    const svgRect = this.canvasSvgRef()?.nativeElement.getBoundingClientRect();
+    if (!svgRect) return;
+
+    // Calculate position in graph coordinates
+    const x = (event.clientX - svgRect.left - this.panX()) / this.scale();
+    const y = (event.clientY - svgRect.top - this.panY()) / this.scale();
+
+    // Check if clicking on a node
+    const nodeId = this.findNodeAtPosition({ x, y });
+    if (nodeId) {
+      this.contextMenu.emit({
+        type: 'node',
+        position: { x: event.clientX, y: event.clientY },
+        nodeId
+      });
+      return;
+    }
+
+    // Check if clicking on an edge (use hit area logic)
+    const edgeId = this.findEdgeAtPosition({ x, y });
+    if (edgeId) {
+      this.contextMenu.emit({
+        type: 'edge',
+        position: { x: event.clientX, y: event.clientY },
+        edgeId
+      });
+      return;
+    }
+
+    // Canvas click
+    this.contextMenu.emit({
+      type: 'canvas',
+      position: { x: event.clientX, y: event.clientY }
+    });
   }
 
   // Helper methods
@@ -1553,6 +1587,41 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       }
     }
     return null;
+  }
+
+  private findEdgeAtPosition(pos: Position): string | null {
+    const hitDistance = 10; // pixels tolerance
+    for (const edge of this.internalGraph().edges) {
+      const sourcePoint = this.getEdgeSourcePoint(edge);
+      const targetPoint = this.getEdgeTargetPoint(edge);
+      
+      // Calculate distance from point to line segment
+      const dist = this.pointToSegmentDistance(pos, sourcePoint, targetPoint);
+      if (dist < hitDistance) {
+        return edge.id;
+      }
+    }
+    return null;
+  }
+
+  private pointToSegmentDistance(point: Position, lineStart: Position, lineEnd: Position): number {
+    const dx = lineEnd.x - lineStart.x;
+    const dy = lineEnd.y - lineStart.y;
+    const lengthSquared = dx * dx + dy * dy;
+    
+    if (lengthSquared === 0) {
+      // Line segment is a point
+      return Math.sqrt((point.x - lineStart.x) ** 2 + (point.y - lineStart.y) ** 2);
+    }
+    
+    // Project point onto line segment
+    let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
+    t = Math.max(0, Math.min(1, t));
+    
+    const projX = lineStart.x + t * dx;
+    const projY = lineStart.y + t * dy;
+    
+    return Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2);
   }
 
   getNodePorts(node: GraphNode): Array<{ position: 'top' | 'bottom' | 'left' | 'right'; x: number; y: number }> {
