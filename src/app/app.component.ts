@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, viewChild } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-editor';
 
@@ -209,7 +209,7 @@ export class AppComponent {
     ]
   });
 
-  private editor: any;
+  private editor = viewChild.required<GraphEditorComponent>('editor');
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);
@@ -252,12 +252,10 @@ export class AppComponent {
   }
 
   autoLayout(): void {
-    // Would call editor.applyLayout() if we had a ViewChild reference
-    console.log('Auto layout - implement ViewChild to access editor');
+    this.editor().applyLayout();
   }
 
   fitToScreen(): void {
-    // Would call editor.fitToScreen() if we had a ViewChild reference
-    console.log('Fit to screen - implement ViewChild to access editor');
+    this.editor().fitToScreen();
   }
 }
