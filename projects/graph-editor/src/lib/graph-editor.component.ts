@@ -147,24 +147,36 @@ import {
             <!-- Layer 0.5: Preview line for line tool (rubber-band) -->
             @if (previewLine()) {
               <line
+                class="preview-line"
                 [attr.x1]="previewLine()!.source.x"
                 [attr.y1]="previewLine()!.source.y"
                 [attr.x2]="previewLine()!.target.x"
                 [attr.y2]="previewLine()!.target.y"
                 stroke="#3b82f6"
-                stroke-width="2"
-                stroke-dasharray="6,4"
-                opacity="0.6"
+                stroke-width="2.5"
+                stroke-dasharray="8,6"
+                stroke-linecap="round"
+                opacity="0.7"
               />
             }
 
             <!-- Layer 1: Edge paths (behind everything) -->
             @for (edge of internalGraph().edges; track edge.id) {
+              <!-- Edge shadow for depth -->
+              <path
+                class="edge-shadow"
+                [attr.d]="getEdgePath(edge)"
+                stroke="rgba(0,0,0,0.06)"
+                stroke-width="6"
+                fill="none"
+                stroke-linecap="round"
+                [attr.transform]="'translate(1, 2)'"
+              />
               <!-- Invisible wide hit-area for easier clicking (hand tool only) -->
               <path
                 [attr.d]="getEdgePath(edge)"
                 stroke="transparent"
-                [attr.stroke-width]="16"
+                [attr.stroke-width]="20"
                 fill="none"
                 class="edge-hit-area"
                 [attr.pointer-events]="activeTool() === 'hand' ? 'stroke' : 'none'"
@@ -173,10 +185,12 @@ import {
               />
               <!-- Visible edge line -->
               <path
+                class="edge-line"
                 [attr.d]="getEdgePath(edge)"
-                [attr.stroke]="getEdgeColor(edge)"
-                [attr.stroke-width]="2"
+                [attr.stroke]="selection().edges.includes(edge.id) ? '#3b82f6' : '#94a3b8'"
+                [attr.stroke-width]="selection().edges.includes(edge.id) ? 2.5 : 2"
                 fill="none"
+                stroke-linecap="round"
                 [class.selected]="selection().edges.includes(edge.id)"
                 [attr.marker-end]="getEdgeMarkerEnd(edge)"
                 [attr.marker-start]="getEdgeMarkerStart(edge)"
@@ -195,33 +209,53 @@ import {
                 (click)="onNodeClick($event, node)"
                 (dblclick)="nodeDoubleClick.emit(node)"
               >
-                <!-- Node background -->
+                <!-- Node background with shadow -->
                 <rect
+                  class="node-shadow"
                   [attr.width]="getNodeSize(node).width"
                   [attr.height]="getNodeSize(node).height"
-                  [attr.fill]="'white'"
-                  [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#cbd5e0'"
-                  [attr.stroke-width]="selection().nodes.includes(node.id) ? 3 : 2"
-                  rx="8"
+                  [attr.transform]="'translate(2, 3)'"
+                  fill="rgba(0,0,0,0.08)"
+                  rx="12"
+                />
+                <rect
+                  class="node-bg"
+                  [attr.width]="getNodeSize(node).width"
+                  [attr.height]="getNodeSize(node).height"
+                  fill="white"
+                  [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
+                  [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
+                  rx="12"
                 />
                 
-                <!-- Node type icon badge (top-left, with padding from corner) -->
+                <!-- Accent bar at top -->
+                <rect
+                  class="node-accent"
+                  [attr.width]="getNodeSize(node).width - 2"
+                  height="4"
+                  x="1"
+                  y="1"
+                  [attr.fill]="selection().nodes.includes(node.id) ? '#3b82f6' : '#94a3b8'"
+                  rx="12"
+                  [attr.clip-path]="'inset(0 0 50% 0 round 12px)'"
+                />
+                
+                <!-- Node type icon badge -->
                 <g class="node-type-badge">
                   <circle
-                    cx="28"
-                    cy="28"
-                    r="16"
-                    fill="#f3f4f6"
-                    stroke="#cbd5e0"
-                    stroke-width="2"
+                    cx="24"
+                    cy="44"
+                    r="18"
+                    fill="#f8fafc"
+                    stroke="#e2e8f0"
+                    stroke-width="1.5"
                   />
                   <text
-                    x="28"
-                    y="28"
+                    x="24"
+                    y="45"
                     text-anchor="middle"
                     dominant-baseline="middle"
-                    font-size="20"
-                    fill="#374151"
+                    font-size="18"
                   >
                     {{ getNodeTypeIcon(node) }}
                   </text>
@@ -229,11 +263,14 @@ import {
                 
                 <!-- Node label -->
                 <text
-                  [attr.x]="getNodeSize(node).width / 2"
-                  [attr.y]="getNodeSize(node).height / 2"
+                  class="node-label"
+                  [attr.x]="getNodeSize(node).width / 2 + 12"
+                  [attr.y]="getNodeSize(node).height / 2 + 2"
                   text-anchor="middle"
                   dominant-baseline="middle"
                   font-size="14"
+                  font-weight="500"
+                  fill="#1e293b"
                 >
                   {{ node.data['name'] || node.type }}
                 </text>
@@ -441,19 +478,44 @@ import {
       cursor: move;
       user-select: none;
       -webkit-user-select: none;
+      transition: transform 0.1s ease-out;
+    }
+
+    .graph-node:hover .node-bg {
+      stroke: #cbd5e1;
+    }
+
+    .graph-node:hover .node-accent {
+      fill: #64748b;
     }
 
     .graph-node text {
       pointer-events: none;
     }
 
-    .graph-node.selected rect {
-      filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.4));
+    .graph-node .node-label {
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
-    path.selected {
-      stroke: #3b82f6 !important;
-      stroke-width: 3 !important;
+    .graph-node.selected .node-bg {
+      stroke: #3b82f6;
+      filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
+    }
+
+    .graph-node.selected .node-accent {
+      fill: #3b82f6;
+    }
+
+    .graph-node.selected .node-shadow {
+      fill: rgba(59, 130, 246, 0.15);
+    }
+
+    .edge-line {
+      transition: stroke 0.15s, stroke-width 0.15s;
+    }
+
+    .edge-line.selected {
+      filter: drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3));
     }
 
     .edge-hit-area {
