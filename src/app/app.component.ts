@@ -234,72 +234,61 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
     @if (showHelp()) {
       <div class="help-overlay" (click)="showHelp.set(false)">
         <div class="help-popup" (click)="$event.stopPropagation()">
-          <button class="close-btn" (click)="showHelp.set(false)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-          <div class="help-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <circle cx="12" cy="17" r="0.5" fill="currentColor"/>
-            </svg>
+          <div class="help-header">
+            <h2>Shortcuts</h2>
+            <button class="close-btn" (click)="showHelp.set(false)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
-          <h2>Keyboard & Mouse</h2>
-          <p class="help-subtitle">Quick reference for graph editor controls</p>
-          <div class="help-grid">
-            <div class="help-card">
-              <div class="card-icon">🖱️</div>
+          <div class="help-columns">
+            <div class="help-section">
               <h3>Canvas</h3>
-              <ul>
-                <li><kbd>Scroll</kbd> <span>Zoom in/out</span></li>
-                <li><kbd>Drag</kbd> <span>Pan view</span></li>
-                <li><kbd>Shift+Drag</kbd> <span>Box select</span></li>
-              </ul>
+              <dl>
+                <div><dt><kbd>Scroll</kbd></dt><dd>Zoom in/out</dd></div>
+                <div><dt><kbd>Drag</kbd></dt><dd>Pan view</dd></div>
+                <div><dt><kbd>Shift+Drag</kbd></dt><dd>Box select</dd></div>
+              </dl>
             </div>
-            <div class="help-card">
-              <div class="card-icon">⬡</div>
+            <div class="help-section">
               <h3>Nodes</h3>
-              <ul>
-                <li><kbd>Click</kbd> <span>Select</span></li>
-                <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
-                <li><kbd>Double-click</kbd> <span>Edit name</span></li>
-                <li><kbd>Drag</kbd> <span>Move (all if multi-selected)</span></li>
-                <li><kbd>Drag corner</kbd> <span>Resize (Hand tool)</span></li>
-                <li><kbd>Del</kbd> <span>Remove selected</span></li>
-                <li><kbd>↑↓←→</kbd> <span>Nudge (Shift: 10px)</span></li>
-              </ul>
+              <dl>
+                <div><dt><kbd>Click</kbd></dt><dd>Select</dd></div>
+                <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Toggle select</dd></div>
+                <div><dt><kbd>Double-click</kbd></dt><dd>Edit name</dd></div>
+                <div><dt><kbd>Drag</kbd></dt><dd>Move (all if multi-selected)</dd></div>
+                <div><dt><kbd>Drag corner</kbd></dt><dd>Resize (Hand tool)</dd></div>
+                <div><dt><kbd>Del</kbd></dt><dd>Remove selected</dd></div>
+                <div><dt><kbd>\u2190\u2191\u2192\u2193</kbd></dt><dd>Nudge (Shift: 10px)</dd></div>
+              </dl>
             </div>
-            <div class="help-card">
-              <div class="card-icon">↗</div>
+            <div class="help-section">
               <h3>Edges</h3>
-              <ul>
-                <li><kbd>Line tool</kbd> <span>Draw mode</span></li>
-                <li><kbd>Click → Click</kbd> <span>Connect</span></li>
-                <li><kbd>Click edge</kbd> <span>Direction</span></li>
-                <li><kbd>Ctrl+Click</kbd> <span>Toggle select</span></li>
-              </ul>
+              <dl>
+                <div><dt><kbd>Line tool</kbd></dt><dd>Draw mode</dd></div>
+                <div><dt><kbd>Click \u2192 Click</kbd></dt><dd>Connect</dd></div>
+                <div><dt><kbd>Click edge</kbd></dt><dd>Direction</dd></div>
+                <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Toggle select</dd></div>
+              </dl>
             </div>
-            <div class="help-card">
-              <div class="card-icon">⌨</div>
+            <div class="help-section">
               <h3>General</h3>
-              <ul>
-                <li><kbd>Ctrl+Z</kbd> <span>Undo</span></li>
-                <li><kbd>Ctrl+Y</kbd> <span>Redo</span></li>
-                <li><kbd>Esc</kbd> <span>Cancel / Deselect</span></li>
-              </ul>
+              <dl>
+                <div><dt><kbd>Ctrl+Z</kbd></dt><dd>Undo</dd></div>
+                <div><dt><kbd>Ctrl+Y</kbd></dt><dd>Redo</dd></div>
+                <div><dt><kbd>Esc</kbd></dt><dd>Cancel / Deselect</dd></div>
+              </dl>
             </div>
-            <div class="help-card">
-              <div class="card-icon">🎨</div>
+            <div class="help-section">
               <h3>Theming</h3>
-              <ul>
-                <li><kbd>Theme picker</kbd> <span>Switch presets</span></li>
-                <li><kbd>ThemeConfig</kbd> <span>Canvas, nodes, edges, ports, toolbar</span></li>
-                <li><kbd>ng-template</kbd> <span>Custom node/edge rendering</span></li>
-                <li><kbd>pathType</kbd> <span>straight / bezier / step</span></li>
-                <li><kbd>gridType</kbd> <span>line / dot</span></li>
-              </ul>
+              <dl>
+                <div><dt><kbd>Theme picker</kbd></dt><dd>Switch presets</dd></div>
+                <div><dt><kbd>ThemeConfig</kbd></dt><dd>Canvas, nodes, edges, ports, toolbar</dd></div>
+                <div><dt><kbd>ng-template</kbd></dt><dd>Custom node/edge rendering</dd></div>
+                <div><dt><kbd>pathType</kbd></dt><dd>straight / bezier / step</dd></div>
+                <div><dt><kbd>gridType</kbd></dt><dd>line / dot</dd></div>
+              </dl>
             </div>
           </div>
         </div>
@@ -571,121 +560,117 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
     .help-popup {
       position: relative;
       background: white;
-      border-radius: 16px;
+      border-radius: 12px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      max-width: 520px;
-      width: 90%;
-      padding: 32px;
-      text-align: center;
+      max-width: 740px;
+      width: 92%;
+      padding: 0;
       animation: slideUp 0.2s ease-out;
     }
 
+    .help-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .help-header h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #374151;
+      margin: 0;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
     .close-btn {
-      position: absolute;
-      top: 16px;
-      right: 16px;
-      background: #f3f4f6;
+      background: none;
       border: none;
-      border-radius: 8px;
-      width: 36px;
-      height: 36px;
+      width: 28px;
+      height: 28px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: #6b7280;
+      color: #9ca3af;
+      border-radius: 6px;
       transition: all 0.15s;
     }
 
     .close-btn:hover {
-      background: #e5e7eb;
+      background: #f3f4f6;
       color: #111827;
     }
 
-    .help-icon {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 56px;
-      height: 56px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      border-radius: 14px;
-      color: white;
-      margin-bottom: 16px;
-    }
-
-    .help-popup h2 {
-      font-size: 20px;
-      font-weight: 700;
-      color: #111827;
-      margin: 0 0 4px;
-    }
-
-    .help-subtitle {
-      font-size: 14px;
-      color: #6b7280;
-      margin: 0 0 24px;
-    }
-
-    .help-grid {
+    .help-columns {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      text-align: left;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0;
+      padding: 12px 16px 16px;
     }
 
-    .help-card {
-      background: #f9fafb;
-      border: 1px solid #e5e7eb;
-      border-radius: 12px;
-      padding: 16px;
+    .help-section {
+      padding: 4px 12px;
     }
 
-    .card-icon {
-      font-size: 20px;
-      margin-bottom: 8px;
+    .help-section:not(:last-child) {
+      border-right: 1px solid #f3f4f6;
     }
 
-    .help-card h3 {
-      font-size: 13px;
+    .help-section:nth-child(4) {
+      border-right: 1px solid #f3f4f6;
+    }
+
+    .help-section:nth-child(n+4) {
+      padding-top: 12px;
+    }
+
+    .help-section h3 {
+      font-size: 11px;
       font-weight: 600;
-      color: #374151;
-      margin: 0 0 10px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin: 0 0 6px;
     }
 
-    .help-card ul {
-      list-style: none;
-      padding: 0;
+    .help-section dl {
       margin: 0;
     }
 
-    .help-card li {
+    .help-section dl > div {
       display: flex;
-      align-items: center;
+      align-items: baseline;
       gap: 8px;
-      font-size: 12px;
-      color: #4b5563;
-      margin-bottom: 6px;
+      padding: 2px 0;
     }
 
-    .help-card li:last-child {
-      margin-bottom: 0;
+    .help-section dt {
+      flex-shrink: 0;
     }
 
-    .help-card li span {
+    .help-section dd {
+      margin: 0;
+      font-size: 11px;
       color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     kbd {
-      background: white;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      padding: 2px 6px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 3px;
+      padding: 1px 5px;
       font-family: inherit;
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 500;
       color: #374151;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+      white-space: nowrap;
     }
 
     .context-menu-overlay {
