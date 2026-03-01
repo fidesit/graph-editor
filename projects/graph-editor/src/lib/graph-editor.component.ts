@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  contentChild,
   ElementRef,
   EventEmitter,
   inject,
@@ -11,13 +12,17 @@ import {
   Output,
   signal,
   SimpleChanges,
+  Type,
   viewChild
 } from '@angular/core';
+import {NgTemplateOutlet, NgComponentOutlet} from '@angular/common';
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
 import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
 import {ContextMenuEvent, GraphEditorConfig, NodeTypeDefinition, SelectionState, ValidationResult} from './graph-editor.config';
 import {GraphHistoryService} from './services/graph-history.service';
 import {SvgIconDefinition} from './icons/workflow-icons';
+import {NodeHtmlTemplateDirective, NodeSvgTemplateDirective, EdgeTemplateDirective, NodeTemplateContext, EdgeTemplateContext} from './template.directives';
+import {ResolvedTheme, resolveTheme, applyThemeCssProperties} from './theme.resolver';
 
 /**
  * Main graph editor component.
@@ -32,7 +37,7 @@ import {SvgIconDefinition} from './icons/workflow-icons';
 @Component({
   selector: 'graph-editor',
   standalone: true,
-  imports: [],
+  imports: [NgTemplateOutlet, NgComponentOutlet],
   providers: [GraphHistoryService],
   host: {
     'tabindex': '0',
@@ -137,8 +142,16 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     };
   });
 
-  // Shadow configuration (defaults to true)
-  shadowsEnabled = computed(() => this.config.theme?.shadows !== false);
+  // Resolved theme (filled defaults)
+  resolvedTheme!: ResolvedTheme;
+
+  // Shadow configuration (derived from resolved theme)
+  shadowsEnabled = computed(() => this.resolvedTheme?.shadows ?? true);
+
+  // Template queries (signal-based contentChild)
+  protected nodeHtmlTemplate = contentChild(NodeHtmlTemplateDirective);
+  protected nodeSvgTemplate = contentChild(NodeSvgTemplateDirective);
+  protected edgeTemplate = contentChild(EdgeTemplateDirective);
 
   // Selected edge info for direction selector positioning
   selectedEdgeMidpoint = computed(() => {
@@ -159,6 +172,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     };
   });
 
+  private readonly hostEl = inject(ElementRef);
+
   constructor() {}
 
   ngOnChanges(changes: SimpleChanges) {
@@ -166,9 +181,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (changes['graph'] && changes['graph'].currentValue) {
       this.internalGraph.set(structuredClone(changes['graph'].currentValue));
     }
+    // Re-resolve theme when config changes
+    if (changes['config']) {
+      this.resolvedTheme = resolveTheme(this.config.theme);
+      applyThemeCssProperties(this.hostEl.nativeElement, this.resolvedTheme, this.config.theme?.variables);
+    }
   }
 
   ngOnInit() {
+    // Resolve theme (first time, in case ngOnChanges didn't fire for config)
+    if (!this.resolvedTheme) {
+      this.resolvedTheme = resolveTheme(this.config.theme);
+      applyThemeCssProperties(this.hostEl.nativeElement, this.resolvedTheme, this.config.theme?.variables);
+    }
     // Initialize with current graph value
     if (this.graph) {
       this.internalGraph.set(structuredClone(this.graph));
@@ -1277,19 +1302,62 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     if (!sourceNode || !targetNode) return '';
 
-    // Get port positions from edge or calculate closest
     const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
     const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
 
-    const sourcePoint = this.getPortWorldPosition(sourceNode, sourcePort);
-    const targetPoint = this.getPortWorldPosition(targetNode, targetPort);
+    const s = this.getPortWorldPosition(sourceNode, sourcePort);
+    const t = this.getPortWorldPosition(targetNode, targetPort);
 
-    // Simple straight line
-    return `M ${sourcePoint.x},${sourcePoint.y} L ${targetPoint.x},${targetPoint.y}`;
+    const pathType = this.resolvedTheme.edge.pathType;
+
+    if (pathType === 'bezier') {
+      const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
+      const sc = this.getPortControlOffset(sourcePort, offset);
+      const tc = this.getPortControlOffset(targetPort, offset);
+      // Blend a small cross-axis component so the bezier tangent at endpoints
+      // isn't purely axis-aligned — this makes arrowheads follow the curve naturally.
+      const crossBias = 0.15;
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const sc1x = s.x + sc.dx + (sc.dx !== 0 ? 0 : dx * crossBias);
+      const sc1y = s.y + sc.dy + (sc.dy !== 0 ? 0 : dy * crossBias);
+      const tc1x = t.x + tc.dx + (tc.dx !== 0 ? 0 : dx * -crossBias);
+      const tc1y = t.y + tc.dy + (tc.dy !== 0 ? 0 : dy * -crossBias);
+      return `M ${s.x},${s.y} C ${sc1x},${sc1y} ${tc1x},${tc1y} ${t.x},${t.y}`;
+    }
+
+    if (pathType === 'step') {
+      const midX = (s.x + t.x) / 2;
+      const midY = (s.y + t.y) / 2;
+      const isSourceVertical = sourcePort === 'top' || sourcePort === 'bottom';
+      const isTargetVertical = targetPort === 'top' || targetPort === 'bottom';
+
+      if (isSourceVertical && isTargetVertical) {
+        return `M ${s.x},${s.y} L ${s.x},${midY} L ${t.x},${midY} L ${t.x},${t.y}`;
+      } else if (!isSourceVertical && !isTargetVertical) {
+        return `M ${s.x},${s.y} L ${midX},${s.y} L ${midX},${t.y} L ${t.x},${t.y}`;
+      } else if (isSourceVertical) {
+        return `M ${s.x},${s.y} L ${s.x},${t.y} L ${t.x},${t.y}`;
+      } else {
+        return `M ${s.x},${s.y} L ${t.x},${s.y} L ${t.x},${t.y}`;
+      }
+    }
+
+    return `M ${s.x},${s.y} L ${t.x},${t.y}`;
+  }
+
+  /** Get the control point offset direction for a port (used by bezier path). */
+  private getPortControlOffset(port: 'top' | 'bottom' | 'left' | 'right', offset: number): { dx: number; dy: number } {
+    switch (port) {
+      case 'top': return { dx: 0, dy: -offset };
+      case 'bottom': return { dx: 0, dy: offset };
+      case 'left': return { dx: -offset, dy: 0 };
+      case 'right': return { dx: offset, dy: 0 };
+    }
   }
 
   getEdgeColor(edge: GraphEdge): string {
-    return edge.metadata?.style?.stroke || this.config.edges.style?.stroke || '#94a3b8';
+    return edge.metadata?.style?.stroke || this.resolvedTheme.edge.stroke;
   }
 
   getEdgeMarkerEnd(edge: GraphEdge): string | null {
@@ -1816,5 +1884,49 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       // Vertical connection
       return dy > 0 ? 'bottom' : 'top';
     }
+  }
+
+  /** Get the component type for a node (from NodeTypeDefinition.component, if set). */
+  getNodeComponent(node: GraphNode): Type<any> | null {
+    const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
+    return nodeConfig?.component ?? null;
+  }
+
+  /** Build inputs map for ngComponentOutlet when rendering a node's custom component. */
+  getNodeComponentInputs(node: GraphNode): Record<string, any> {
+    const size = this.getNodeSize(node);
+    return {
+      node,
+      selected: this.selection().nodes.includes(node.id),
+      width: size.width,
+      height: size.height,
+      config: this.config,
+    };
+  }
+
+  /** Build the template context for custom node templates. */
+  getNodeTemplateContext(node: GraphNode): NodeTemplateContext {
+    const nodeConfig = this.config.nodes.types.find(t => t.type === node.type)!;
+    const size = this.getNodeSize(node);
+    return {
+      $implicit: {
+        node,
+        type: nodeConfig,
+        selected: this.selection().nodes.includes(node.id),
+        width: size.width,
+        height: size.height,
+      },
+    };
+  }
+
+  /** Build the template context for custom edge templates. */
+  getEdgeTemplateContext(edge: GraphEdge): EdgeTemplateContext {
+    return {
+      $implicit: {
+        edge,
+        path: this.getEdgePath(edge),
+        selected: this.selection().edges.includes(edge.id),
+      },
+    };
   }
 }

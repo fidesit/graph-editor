@@ -239,10 +239,168 @@ export interface ContextMenuContext {
  * Theme configuration.
  */
 export interface ThemeConfig {
-  /** CSS custom property values */
+  /** CSS custom property values (applied to host element) */
   variables?: Record<string, string>;
   /** Enable drop shadows on nodes and edges (default: true) */
   shadows?: boolean;
+  /** Canvas theming */
+  canvas?: CanvasTheme;
+  /** Node theming */
+  node?: NodeTheme;
+  /** Edge theming */
+  edge?: EdgeTheme;
+  /** Port/attachment point theming */
+  port?: PortTheme;
+  /** Selection theming */
+  selection?: SelectionTheme;
+  /** Font configuration */
+  font?: FontTheme;
+  /** Toolbar & palette chrome theming */
+  toolbar?: ToolbarTheme;
+}
+
+/**
+ * Canvas visual theme.
+ */
+export interface CanvasTheme {
+  /** Canvas background color (default: '#f8f9fa') */
+  background?: string;
+  /** Grid pattern type (default: 'line') */
+  gridType?: 'line' | 'dot';
+  /** Grid line/dot color (default: '#e0e0e0') */
+  gridColor?: string;
+}
+
+/**
+ * Node visual theme.
+ */
+export interface NodeTheme {
+  /** Node background fill (default: 'white') */
+  background?: string;
+  /** Node border color (default: '#e2e8f0') */
+  borderColor?: string;
+  /** Node border width in px (default: 1.5) */
+  borderWidth?: number;
+  /** Node corner radius in px (default: 12) */
+  borderRadius?: number;
+  /** Border color when selected (default: selection.color) */
+  selectedBorderColor?: string;
+  /** Border width when selected in px (default: 2.5) */
+  selectedBorderWidth?: number;
+  /** Shadow color (default: 'rgba(0,0,0,0.08)') */
+  shadowColor?: string;
+  /** Label text color (default: '#1e293b') */
+  labelColor?: string;
+  /** Label font family (default: 'system-ui, -apple-system, sans-serif') */
+  labelFont?: string;
+  /**
+   * Per-type visual overrides. Keys are node type identifiers.
+   * @example { 'llm-call': { accentColor: '#1D6A96' } }
+   */
+  typeStyles?: Record<string, NodeTypeStyle>;
+}
+
+/**
+ * Per-node-type visual overrides.
+ */
+export interface NodeTypeStyle {
+  /** Node background for this type */
+  background?: string;
+  /** Node border color for this type */
+  borderColor?: string;
+  /** Accent/header background color */
+  accentColor?: string;
+  /** Accent/header text color */
+  accentTextColor?: string;
+}
+
+/**
+ * Edge visual theme.
+ */
+export interface EdgeTheme {
+  /** Edge stroke color (default: '#94a3b8') */
+  stroke?: string;
+  /** Edge stroke width in px (default: 2) */
+  strokeWidth?: number;
+  /** Edge stroke color when selected (default: selection.color) */
+  selectedStroke?: string;
+  /** Edge stroke width when selected in px (default: 2.5) */
+  selectedStrokeWidth?: number;
+  /** Arrow marker fill color (default: '#94a3b8') */
+  markerColor?: string;
+  /** Arrow marker fill color when selected (default: selection.color) */
+  selectedMarkerColor?: string;
+  /** Edge path routing algorithm (default: 'straight') */
+  pathType?: 'straight' | 'bezier' | 'step';
+}
+
+/**
+ * Port/attachment point visual theme.
+ */
+export interface PortTheme {
+  /** Port fill color (default: '#94a3b8') */
+  fill?: string;
+  /** Port border color (default: 'white') */
+  stroke?: string;
+  /** Port border width in px (default: 2) */
+  strokeWidth?: number;
+  /** Port radius in px (default: 6) */
+  radius?: number;
+  /** Port fill color on hover (default: '#2563eb') */
+  hoverFill?: string;
+  /** Port radius on hover in px (default: 8) */
+  hoverRadius?: number;
+}
+
+/**
+ * Selection visual theme.
+ */
+export interface SelectionTheme {
+  /** Primary selection color — also used as default for node/edge selected states (default: '#3b82f6') */
+  color?: string;
+  /** Box selection fill (default: 'rgba(59, 130, 246, 0.1)') */
+  boxFill?: string;
+  /** Box selection stroke (default: selection.color) */
+  boxStroke?: string;
+}
+
+/**
+ * Font theme.
+ */
+export interface FontTheme {
+  /** Primary font family (default: 'system-ui, -apple-system, sans-serif') */
+  family?: string;
+  /** Monospace font family (default: 'monospace') */
+  monoFamily?: string;
+}
+
+/**
+ * Toolbar & palette chrome theme.
+ * Controls the top toolbar, left palette, and edge direction selector.
+ */
+export interface ToolbarTheme {
+  /** Panel background (default: 'rgba(255, 255, 255, 0.95)') */
+  background?: string;
+  /** Panel border radius in px (default: 8) */
+  borderRadius?: number;
+  /** Panel box shadow (default: '0 2px 8px rgba(0, 0, 0, 0.1)') */
+  shadow?: string;
+  /** Button background (default: '#ffffff') */
+  buttonBackground?: string;
+  /** Button border color (default: '#e5e7eb') */
+  buttonBorderColor?: string;
+  /** Button text/icon color (default: '#4b5563') */
+  buttonTextColor?: string;
+  /** Button hover background (default: '#f9fafb') */
+  buttonHoverBackground?: string;
+  /** Button hover border & text color — matches selection.color by default */
+  buttonHoverAccent?: string;
+  /** Active (pressed) tool button background (default: selection.color) */
+  buttonActiveBackground?: string;
+  /** Active tool button text color (default: '#ffffff') */
+  buttonActiveTextColor?: string;
+  /** Divider line color between button groups (default: '#e5e7eb') */
+  dividerColor?: string;
 }
 
 /**

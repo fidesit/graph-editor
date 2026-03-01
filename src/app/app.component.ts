@@ -1,6 +1,6 @@
 import { Component, signal, viewChild, computed } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError, ThemeConfig } from '@utisha/graph-editor';
 
 /**
  * Demo icons - simple geometric shapes for demonstration.
@@ -146,10 +146,10 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
           <div class="theme-group">
             <span class="theme-label">Theme</span>
             <select class="theme-select" (change)="onThemeChange($event)" [value]="currentTheme()">
-              <option value="default">Default</option>
-              <option value="compact">Compact</option>
-              <option value="detailed">Detailed</option>
-              <option value="minimal">Minimal</option>
+              <option value="default">Default (Straight)</option>
+              <option value="compact">Compact (Bezier + Dot Grid)</option>
+              <option value="detailed">Detailed (Step + Type Styles)</option>
+              <option value="minimal">Dark (Bezier + Dot Grid)</option>
             </select>
           </div>
           <div class="action-divider"></div>
@@ -991,12 +991,105 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
   `]
 })
 export class AppComponent {
-  // Theme presets
-  private readonly themes: Record<string, { nodeSize: { width: number; height: number }; shadows: boolean; gridSize: number }> = {
-    default: { nodeSize: { width: 180, height: 80 }, shadows: true, gridSize: 20 },
-    compact: { nodeSize: { width: 140, height: 60 }, shadows: false, gridSize: 15 },
-    detailed: { nodeSize: { width: 220, height: 100 }, shadows: true, gridSize: 25 },
-    minimal: { nodeSize: { width: 160, height: 70 }, shadows: false, gridSize: 20 }
+  // Theme presets — each showcases different ThemeConfig capabilities
+  private readonly themes: Record<string, { nodeSize: { width: number; height: number }; gridSize: number; theme: ThemeConfig }> = {
+    default: {
+      nodeSize: { width: 180, height: 80 },
+      gridSize: 20,
+      theme: {
+        shadows: true,
+        edge: { pathType: 'straight' },
+      }
+    },
+    compact: {
+      nodeSize: { width: 140, height: 60 },
+      gridSize: 15,
+      theme: {
+        shadows: false,
+        canvas: { background: '#f0f4f8', gridType: 'dot', gridColor: '#94a3b8' },
+        node: {
+          background: '#ffffff',
+          borderColor: '#cbd5e1',
+          borderRadius: 8,
+          borderWidth: 1,
+          selectedBorderColor: '#6366f1',
+          labelColor: '#334155',
+        },
+        edge: { stroke: '#64748b', pathType: 'bezier', selectedStroke: '#6366f1', markerColor: '#64748b', selectedMarkerColor: '#6366f1' },
+        selection: { color: '#6366f1' },
+        toolbar: {
+          buttonHoverAccent: '#6366f1',
+          buttonActiveBackground: '#6366f1',
+        },
+        port: { fill: '#64748b', hoverFill: '#6366f1' },
+      }
+    },
+    detailed: {
+      nodeSize: { width: 220, height: 100 },
+      gridSize: 25,
+      theme: {
+        shadows: true,
+        canvas: { background: '#fafaf9', gridType: 'line', gridColor: '#e7e5e4' },
+        node: {
+          background: '#fffbeb',
+          borderColor: '#fcd34d',
+          borderWidth: 2,
+          borderRadius: 16,
+          selectedBorderColor: '#f59e0b',
+          shadowColor: 'rgba(245, 158, 11, 0.12)',
+          labelColor: '#78350f',
+          typeStyles: {
+            'start': { background: '#ecfdf5', borderColor: '#6ee7b7', accentColor: '#059669' },
+            'end': { background: '#fef2f2', borderColor: '#fca5a5', accentColor: '#dc2626' },
+            'decision': { background: '#f5f3ff', borderColor: '#c4b5fd', accentColor: '#7c3aed' },
+            'database': { background: '#eff6ff', borderColor: '#93c5fd', accentColor: '#2563eb' },
+          },
+        },
+        edge: { stroke: '#d97706', strokeWidth: 2.5, pathType: 'step', selectedStroke: '#f59e0b', markerColor: '#d97706', selectedMarkerColor: '#f59e0b' },
+        selection: { color: '#f59e0b', boxFill: 'rgba(245, 158, 11, 0.1)', boxStroke: '#f59e0b' },
+        font: { family: 'Georgia, "Times New Roman", serif' },
+        toolbar: {
+          background: 'rgba(255, 251, 235, 0.95)',
+          buttonBorderColor: '#fcd34d',
+          buttonTextColor: '#78350f',
+          buttonHoverAccent: '#f59e0b',
+          buttonActiveBackground: '#f59e0b',
+          dividerColor: '#fcd34d',
+        },
+      }
+    },
+    minimal: {
+      nodeSize: { width: 160, height: 70 },
+      gridSize: 20,
+      theme: {
+        shadows: false,
+        canvas: { background: '#18181b', gridType: 'dot', gridColor: '#3f3f46' },
+        node: {
+          background: '#27272a',
+          borderColor: '#3f3f46',
+          borderWidth: 1,
+          borderRadius: 6,
+          selectedBorderColor: '#22d3ee',
+          labelColor: '#e4e4e7',
+        },
+        edge: { stroke: '#52525b', pathType: 'bezier', selectedStroke: '#22d3ee', markerColor: '#52525b', selectedMarkerColor: '#22d3ee' },
+        selection: { color: '#22d3ee', boxFill: 'rgba(34, 211, 238, 0.1)', boxStroke: '#22d3ee' },
+        port: { fill: '#52525b', hoverFill: '#22d3ee', stroke: '#18181b' },
+        font: { family: '"SF Mono", Monaco, Consolas, monospace' },
+        toolbar: {
+          background: 'rgba(39, 39, 42, 0.95)',
+          shadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
+          buttonBackground: '#3f3f46',
+          buttonBorderColor: '#52525b',
+          buttonTextColor: '#a1a1aa',
+          buttonHoverBackground: '#52525b',
+          buttonHoverAccent: '#22d3ee',
+          buttonActiveBackground: '#22d3ee',
+          buttonActiveTextColor: '#18181b',
+          dividerColor: '#52525b',
+        },
+      }
+    }
   };
 
   currentTheme = signal<string>('default');
@@ -1015,11 +1108,11 @@ export class AppComponent {
 
   // Computed config based on theme
   editorConfig = computed<GraphEditorConfig>(() => {
-    const theme = this.themes[this.currentTheme()];
+    const preset = this.themes[this.currentTheme()];
     return {
       nodes: {
-        types: this.nodeTypes.map(t => ({ ...t, size: theme.nodeSize })),
-        defaultSize: theme.nodeSize,
+        types: this.nodeTypes.map(t => ({ ...t, size: preset.nodeSize })),
+        defaultSize: preset.nodeSize,
         iconPosition: 'top-left'
       },
       edges: {
@@ -1027,12 +1120,12 @@ export class AppComponent {
         style: { stroke: '#94a3b8', strokeWidth: 2, markerEnd: 'arrow' }
       },
       canvas: {
-        grid: { enabled: true, size: theme.gridSize, snap: true, color: '#e5e7eb' },
+        grid: { enabled: true, size: preset.gridSize, snap: true },
         zoom: { enabled: true, min: 0.25, max: 2.0, step: 0.1, wheelEnabled: true },
         pan: { enabled: true }
       },
       palette: { enabled: true, position: 'left' },
-      theme: { shadows: theme.shadows },
+      theme: preset.theme,
       validation: { validators: DEMO_VALIDATION_RULES, validateOnChange: false }
     };
   });

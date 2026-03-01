@@ -126,21 +126,21 @@
     >
       <!-- Arrow marker definitions -->
       <defs>
-        <marker id="arrow-end" viewBox="0 0 10 10" refX="9" refY="5"
+        <marker id="arrow-end" viewBox="0 0 10 10" refX="8" refY="5"
           markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#94a3b8"/>
+          <path d="M 0 1 L 8 5 L 0 9 z" [attr.fill]="resolvedTheme.edge.markerColor"/>
         </marker>
-        <marker id="arrow-end-selected" viewBox="0 0 10 10" refX="9" refY="5"
+        <marker id="arrow-end-selected" viewBox="0 0 10 10" refX="8" refY="5"
           markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#3b82f6"/>
+          <path d="M 0 1 L 8 5 L 0 9 z" [attr.fill]="resolvedTheme.edge.selectedMarkerColor"/>
         </marker>
-        <marker id="arrow-start" viewBox="0 0 10 10" refX="1" refY="5"
+        <marker id="arrow-start" viewBox="0 0 10 10" refX="2" refY="5"
           markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 10 1 L 2 5 L 10 9 z" fill="#94a3b8"/>
+          <path d="M 10 1 L 2 5 L 10 9 z" [attr.fill]="resolvedTheme.edge.markerColor"/>
         </marker>
-        <marker id="arrow-start-selected" viewBox="0 0 10 10" refX="1" refY="5"
+        <marker id="arrow-start-selected" viewBox="0 0 10 10" refX="2" refY="5"
           markerWidth="8" markerHeight="8" orient="auto">
-          <path d="M 10 1 L 2 5 L 10 9 z" fill="#3b82f6"/>
+          <path d="M 10 1 L 2 5 L 10 9 z" [attr.fill]="resolvedTheme.edge.selectedMarkerColor"/>
         </marker>
       </defs>
 
@@ -150,28 +150,17 @@
         <!-- Grid (if enabled) - extended to cover viewport during pan -->
         @if (config.canvas?.grid?.enabled) {
           <defs>
-            <pattern
-              id="grid"
-              [attr.width]="config.canvas!.grid!.size"
-              [attr.height]="config.canvas!.grid!.size"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                [attr.d]="'M ' + config.canvas!.grid!.size + ' 0 L 0 0 0 ' + config.canvas!.grid!.size"
-                fill="none"
-                [attr.stroke]="config.canvas!.grid!.color || '#e0e0e0'"
-                stroke-width="1"
-              />
-            </pattern>
+            @if (resolvedTheme.canvas.gridType === 'dot') {
+              <pattern id="grid" [attr.width]="config.canvas!.grid!.size" [attr.height]="config.canvas!.grid!.size" patternUnits="userSpaceOnUse">
+                <circle [attr.cx]="config.canvas!.grid!.size / 2" [attr.cy]="config.canvas!.grid!.size / 2" r="1" [attr.fill]="resolvedTheme.canvas.gridColor" />
+              </pattern>
+            } @else {
+              <pattern id="grid" [attr.width]="config.canvas!.grid!.size" [attr.height]="config.canvas!.grid!.size" patternUnits="userSpaceOnUse">
+                <path [attr.d]="'M ' + config.canvas!.grid!.size + ' 0 L 0 0 0 ' + config.canvas!.grid!.size" fill="none" [attr.stroke]="resolvedTheme.canvas.gridColor" stroke-width="1" />
+              </pattern>
+            }
           </defs>
-          <!-- Extended grid background covering viewport + pan offset -->
-          <rect
-            [attr.x]="gridBounds().x"
-            [attr.y]="gridBounds().y"
-            [attr.width]="gridBounds().width"
-            [attr.height]="gridBounds().height"
-            fill="url(#grid)"
-          />
+          <rect [attr.x]="gridBounds().x" [attr.y]="gridBounds().y" [attr.width]="gridBounds().width" [attr.height]="gridBounds().height" fill="url(#grid)" />
         }
 
         <!-- Layer 0.5: Preview line for line tool (rubber-band) -->
@@ -182,7 +171,7 @@
             [attr.y1]="previewLine()!.source.y"
             [attr.x2]="previewLine()!.target.x"
             [attr.y2]="previewLine()!.target.y"
-            stroke="#3b82f6"
+            [attr.stroke]="resolvedTheme.selection.color"
             stroke-width="2.5"
             stroke-dasharray="8,6"
             stroke-linecap="round"
@@ -216,18 +205,16 @@
             (dblclick)="onEdgeDoubleClick($event, edge)"
           />
           <!-- Visible edge line -->
-          <path
-            class="edge-line"
-            [attr.d]="getEdgePath(edge)"
-            [attr.stroke]="selection().edges.includes(edge.id) ? '#3b82f6' : '#94a3b8'"
-            [attr.stroke-width]="selection().edges.includes(edge.id) ? 2.5 : 2"
-            fill="none"
-            stroke-linecap="round"
-            [class.selected]="selection().edges.includes(edge.id)"
-            [attr.marker-end]="getEdgeMarkerEnd(edge)"
-            [attr.marker-start]="getEdgeMarkerStart(edge)"
-            pointer-events="none"
-          />
+          @if (edgeTemplate()?.templateRef) {
+            <ng-container [ngTemplateOutlet]="edgeTemplate()!.templateRef" [ngTemplateOutletContext]="getEdgeTemplateContext(edge)" />
+          } @else {
+            <path class="edge-line" [attr.d]="getEdgePath(edge)"
+              [attr.stroke]="selection().edges.includes(edge.id) ? resolvedTheme.edge.selectedStroke : resolvedTheme.edge.stroke"
+              [attr.stroke-width]="selection().edges.includes(edge.id) ? resolvedTheme.edge.selectedStrokeWidth : resolvedTheme.edge.strokeWidth"
+              fill="none" stroke-linecap="round" [class.selected]="selection().edges.includes(edge.id)"
+              [attr.marker-end]="getEdgeMarkerEnd(edge)" [attr.marker-start]="getEdgeMarkerStart(edge)"
+              pointer-events="none" />
+          }
         }
 
         <!-- Layer 2: Nodes -->
@@ -241,84 +228,52 @@
             (click)="onNodeClick($event, node)"
             (dblclick)="nodeDoubleClick.emit(node)"
           >
-            <!-- Node shadow (optional) -->
-            @if (shadowsEnabled()) {
-              <rect
-                class="node-shadow"
-                [attr.width]="getNodeSize(node).width"
-                [attr.height]="getNodeSize(node).height"
-                fill="rgba(0,0,0,0.08)"
-                rx="12"
-                transform="translate(2, 3)"
-                style="filter: blur(4px);"
-              />
-            }
-            <!-- Node background -->
-            <rect
-              class="node-bg"
-              [attr.width]="getNodeSize(node).width"
-              [attr.height]="getNodeSize(node).height"
-              fill="white"
-              [attr.stroke]="selection().nodes.includes(node.id) ? '#3b82f6' : '#e2e8f0'"
-              [attr.stroke-width]="selection().nodes.includes(node.id) ? 2.5 : 1.5"
-              rx="12"
-            />
-
-            <!-- Node type icon (text/emoji) or custom image -->
-            @if (getNodeImage(node)) {
-              <image
-                class="node-image"
-                [attr.href]="getNodeImage(node)"
-                [attr.xlink:href]="getNodeImage(node)"
-                [attr.x]="getImagePosition(node).x"
-                [attr.y]="getImagePosition(node).y"
-                [attr.width]="getImageSize(node)"
-                [attr.height]="getImageSize(node)"
-                preserveAspectRatio="xMidYMid meet"
-              />
+            <!-- Priority: nodeHtmlTemplate > nodeSvgTemplate > component > default -->
+            @if (nodeHtmlTemplate()?.templateRef) {
+              <foreignObject [attr.width]="getNodeSize(node).width" [attr.height]="getNodeSize(node).height">
+                <ng-container [ngTemplateOutlet]="nodeHtmlTemplate()!.templateRef" [ngTemplateOutletContext]="getNodeTemplateContext(node)" />
+              </foreignObject>
+            } @else if (nodeSvgTemplate()?.templateRef) {
+              <ng-container [ngTemplateOutlet]="nodeSvgTemplate()!.templateRef" [ngTemplateOutletContext]="getNodeTemplateContext(node)" />
+            } @else if (getNodeComponent(node)) {
+              <foreignObject [attr.width]="getNodeSize(node).width" [attr.height]="getNodeSize(node).height">
+                <ng-container *ngComponentOutlet="getNodeComponent(node)!; inputs: getNodeComponentInputs(node)" />
+              </foreignObject>
             } @else {
-              <text
-                class="node-icon"
-                [attr.x]="getIconPosition(node).x"
-                [attr.y]="getIconPosition(node).y"
-                text-anchor="middle"
-                dominant-baseline="middle"
-                [attr.font-size]="getNodeSize(node).height * 0.28"
-              >
-                {{ getNodeTypeIcon(node) }}
-              </text>
-            }
-
-            <!-- Node label (wrapped and auto-sized) -->
-            <text
-              class="node-label"
-              [attr.x]="getLabelLineX(node)"
-              text-anchor="middle"
-              [attr.font-size]="getWrappedLabel(node).fontSize"
-              font-weight="500"
-              fill="#1e293b"
-            >
-              @for (line of getWrappedLabel(node).lines; track $index) {
-                <tspan
-                  [attr.x]="getLabelLineX(node)"
-                  [attr.y]="getLabelLineY(node, $index, getWrappedLabel(node).lines.length, getWrappedLabel(node).lineHeight)"
-                >{{ line }}</tspan>
+              <!-- Default built-in rendering (same as before but with resolvedTheme) -->
+              @if (shadowsEnabled()) {
+                <rect class="node-shadow" [attr.width]="getNodeSize(node).width" [attr.height]="getNodeSize(node).height"
+                  [attr.fill]="resolvedTheme.node.shadowColor" [attr.rx]="resolvedTheme.node.borderRadius"
+                  transform="translate(2, 3)" style="filter: blur(4px);" />
               }
-            </text>
-
-            <!-- Resize handle (SE corner, visible when selected + hand tool) -->
-            @if (selection().nodes.includes(node.id) && activeTool() === 'hand' && selection().nodes.length === 1) {
-              <rect
-                class="resize-handle resize-handle-se"
-                [attr.x]="getNodeSize(node).width - 8"
-                [attr.y]="getNodeSize(node).height - 8"
-                width="10"
-                height="10"
-                fill="#3b82f6"
-                rx="2"
-                cursor="se-resize"
-                (mousedown)="onResizeHandleMouseDown($event, node)"
-              />
+              <rect class="node-bg" [attr.width]="getNodeSize(node).width" [attr.height]="getNodeSize(node).height"
+                [attr.fill]="resolvedTheme.node.background"
+                [attr.stroke]="selection().nodes.includes(node.id) ? resolvedTheme.node.selectedBorderColor : resolvedTheme.node.borderColor"
+                [attr.stroke-width]="selection().nodes.includes(node.id) ? resolvedTheme.node.selectedBorderWidth : resolvedTheme.node.borderWidth"
+                [attr.rx]="resolvedTheme.node.borderRadius" />
+              @if (getNodeImage(node)) {
+                <image class="node-image" [attr.href]="getNodeImage(node)" [attr.xlink:href]="getNodeImage(node)"
+                  [attr.x]="getImagePosition(node).x" [attr.y]="getImagePosition(node).y"
+                  [attr.width]="getImageSize(node)" [attr.height]="getImageSize(node)"
+                  preserveAspectRatio="xMidYMid meet" />
+              } @else {
+                <text class="node-icon" [attr.x]="getIconPosition(node).x" [attr.y]="getIconPosition(node).y"
+                  text-anchor="middle" dominant-baseline="middle" [attr.font-size]="getNodeSize(node).height * 0.28">
+                  {{ getNodeTypeIcon(node) }}
+                </text>
+              }
+              <text class="node-label" [attr.x]="getLabelLineX(node)" text-anchor="middle"
+                [attr.font-size]="getWrappedLabel(node).fontSize" font-weight="500" [attr.fill]="resolvedTheme.node.labelColor">
+                @for (line of getWrappedLabel(node).lines; track $index) {
+                  <tspan [attr.x]="getLabelLineX(node)"
+                    [attr.y]="getLabelLineY(node, $index, getWrappedLabel(node).lines.length, getWrappedLabel(node).lineHeight)">{{ line }}</tspan>
+                }
+              </text>
+              @if (selection().nodes.includes(node.id) && activeTool() === 'hand' && selection().nodes.length === 1) {
+                <rect class="resize-handle resize-handle-se" [attr.x]="getNodeSize(node).width - 8" [attr.y]="getNodeSize(node).height - 8"
+                  width="10" height="10" [attr.fill]="resolvedTheme.selection.color" rx="2" cursor="se-resize"
+                  (mousedown)="onResizeHandleMouseDown($event, node)" />
+              }
             }
           </g>
         }
@@ -331,10 +286,10 @@
                 <circle
                   [attr.cx]="port.x"
                   [attr.cy]="port.y"
-                  [attr.r]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? 8 : 6"
-                  [attr.fill]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? '#2563eb' : '#94a3b8'"
-                  stroke="white"
-                  stroke-width="2"
+                  [attr.r]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? resolvedTheme.port.hoverRadius : resolvedTheme.port.radius"
+                  [attr.fill]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position ? resolvedTheme.port.hoverFill : resolvedTheme.port.fill"
+                  [attr.stroke]="resolvedTheme.port.stroke"
+                  [attr.stroke-width]="resolvedTheme.port.strokeWidth"
                   class="attachment-point"
                   [class.hovered]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position"
                   (mousedown)="$event.stopPropagation()"
@@ -354,7 +309,7 @@
                 [attr.cx]="getEdgeSourcePoint(edge).x"
                 [attr.cy]="getEdgeSourcePoint(edge).y"
                 r="6"
-                fill="#3b82f6"
+                [attr.fill]="resolvedTheme.selection.color"
                 stroke="white"
                 stroke-width="2"
                 class="edge-endpoint selected"
@@ -366,7 +321,7 @@
                 [attr.cx]="getEdgeTargetPoint(edge).x"
                 [attr.cy]="getEdgeTargetPoint(edge).y"
                 r="6"
-                fill="#3b82f6"
+                [attr.fill]="resolvedTheme.selection.color"
                 stroke="white"
                 stroke-width="2"
                 class="edge-endpoint selected"
@@ -384,8 +339,8 @@
             [attr.y]="selectionBox()!.y"
             [attr.width]="selectionBox()!.width"
             [attr.height]="selectionBox()!.height"
-            fill="rgba(59, 130, 246, 0.1)"
-            stroke="#3b82f6"
+            [attr.fill]="resolvedTheme.selection.boxFill"
+            [attr.stroke]="resolvedTheme.selection.boxStroke"
             stroke-width="1"
             stroke-dasharray="4,2"
           />

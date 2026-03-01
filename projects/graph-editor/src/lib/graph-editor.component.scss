@@ -14,10 +14,10 @@
   display: flex;
   gap: 4px;
   z-index: 10;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--ge-toolbar-bg, rgba(255, 255, 255, 0.95));
   padding: 6px;
-  border-radius: var(--radius-md, 8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--ge-toolbar-radius, 8px);
+  box-shadow: var(--ge-toolbar-shadow, 0 2px 8px rgba(0, 0, 0, 0.1));
   backdrop-filter: blur(4px);
 }
 
@@ -28,10 +28,10 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1.5px solid var(--neutral-200, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
-  background: var(--white, #fff);
-  color: var(--neutral-600, #4b5563);
+  border: 1.5px solid var(--ge-toolbar-btn-border, #e5e7eb);
+  border-radius: var(--ge-toolbar-radius, 8px);
+  background: var(--ge-toolbar-btn-bg, #fff);
+  color: var(--ge-toolbar-btn-color, #4b5563);
   cursor: pointer;
   user-select: none;
   transition: all 0.15s ease;
@@ -44,9 +44,9 @@
 }
 
 .toolbar-btn:hover {
-  background: var(--neutral-50, #f9fafb);
-  border-color: var(--interactive, #3b82f6);
-  color: var(--interactive, #3b82f6);
+  background: var(--ge-toolbar-btn-hover-bg, #f9fafb);
+  border-color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
+  color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
 }
 
 .toolbar-btn:active {
@@ -55,20 +55,20 @@
 }
 
 .toolbar-btn.active {
-  background: var(--interactive, #3b82f6);
-  border-color: var(--interactive, #3b82f6);
-  color: white;
+  background: var(--ge-toolbar-btn-active-bg, #3b82f6);
+  border-color: var(--ge-toolbar-btn-active-bg, #3b82f6);
+  color: var(--ge-toolbar-btn-active-color, white);
 }
 
 .toolbar-btn.active:hover {
-  background: var(--interactive-hover, #2563eb);
-  border-color: var(--interactive-hover, #2563eb);
-  color: white;
+  background: color-mix(in srgb, var(--ge-toolbar-btn-active-bg, #3b82f6) 85%, black);
+  border-color: color-mix(in srgb, var(--ge-toolbar-btn-active-bg, #3b82f6) 85%, black);
+  color: var(--ge-toolbar-btn-active-color, white);
 }
 
 .toolbar-divider {
   width: 1px;
-  background: var(--neutral-200, #e5e7eb);
+  background: var(--ge-toolbar-divider, #e5e7eb);
   align-self: stretch;
   margin: 4px 2px;
 }
@@ -88,10 +88,10 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--ge-toolbar-bg, rgba(255, 255, 255, 0.95));
   padding: 6px;
-  border-radius: var(--radius-md, 8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--ge-toolbar-radius, 8px);
+  box-shadow: var(--ge-toolbar-shadow, 0 2px 8px rgba(0, 0, 0, 0.1));
   backdrop-filter: blur(4px);
 }
 
@@ -102,10 +102,10 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1.5px solid var(--neutral-200, #e5e7eb);
-  border-radius: var(--radius-md, 8px);
-  background: var(--white, #fff);
-  color: var(--neutral-600, #4b5563);
+  border: 1.5px solid var(--ge-toolbar-btn-border, #e5e7eb);
+  border-radius: var(--ge-toolbar-radius, 8px);
+  background: var(--ge-toolbar-btn-bg, #fff);
+  color: var(--ge-toolbar-btn-color, #4b5563);
   cursor: pointer;
   user-select: none;
   transition: all 0.15s ease;
@@ -144,7 +144,7 @@
 }
 
 .graph-node:hover .node-bg {
-  stroke: #cbd5e1;
+  stroke: var(--ge-node-border, #cbd5e1);
 }
 
 .graph-node text {
@@ -152,11 +152,11 @@
 }
 
 .graph-node .node-label {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--ge-font-family, system-ui, -apple-system, sans-serif);
 }
 
 .graph-node.selected .node-bg {
-  stroke: #3b82f6;
+  stroke: var(--ge-selection-color, #3b82f6);
   filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
 }
 
@@ -179,11 +179,11 @@
 
 .edge-endpoint:hover {
   r: 8;
-  fill: #2563eb;
+  fill: var(--ge-selection-color, #3b82f6);
 }
 
 .edge-endpoint.selected {
-  fill: #2563eb;
+  fill: var(--ge-selection-color, #3b82f6);
 }
 
 .attachment-point {
@@ -227,10 +227,10 @@
   margin-top: -12px;
   display: flex;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--ge-toolbar-bg, rgba(255, 255, 255, 0.95));
   padding: 4px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: calc(var(--ge-toolbar-radius, 8px) * 0.75);
+  box-shadow: var(--ge-toolbar-shadow, 0 2px 8px rgba(0, 0, 0, 0.15));
   backdrop-filter: blur(4px);
   z-index: 20;
   pointer-events: auto;
@@ -243,25 +243,25 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
-  background: white;
+  border: 1px solid var(--ge-toolbar-btn-border, #e5e7eb);
+  border-radius: calc(var(--ge-toolbar-radius, 8px) * 0.5);
+  background: var(--ge-toolbar-btn-bg, white);
   cursor: pointer;
   font-size: 16px;
   transition: all 0.15s;
-  color: #6b7280;
+  color: var(--ge-toolbar-btn-color, #6b7280);
 }
 
 .direction-btn:hover {
-  background: #f3f4f6;
-  border-color: #3b82f6;
-  color: #3b82f6;
+  background: var(--ge-toolbar-btn-hover-bg, #f3f4f6);
+  border-color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
+  color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
 }
 
 .direction-btn.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: white;
+  background: var(--ge-toolbar-btn-active-bg, #3b82f6);
+  border-color: var(--ge-toolbar-btn-active-bg, #3b82f6);
+  color: var(--ge-toolbar-btn-active-color, white);
 }
 
 // Resize handle
@@ -273,5 +273,5 @@
 
 .resize-handle:hover {
   opacity: 1;
-  fill: #2563eb;
+  fill: var(--ge-selection-color, #3b82f6);
 }
