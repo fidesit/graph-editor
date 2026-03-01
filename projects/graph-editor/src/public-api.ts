@@ -24,6 +24,8 @@ export type {
   InteractionConfig,
   ThemeConfig,
   PaletteConfig,
+  ToolbarConfig,
+  ToolbarItem,
   NodeTypeDefinition,
   PortConfig,
   PortDefinition,

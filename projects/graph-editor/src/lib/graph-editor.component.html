@@ -2,77 +2,95 @@
   <!-- Canvas with overlaid palette -->
   <div class="graph-canvas-wrapper">
     <!-- Top horizontal toolbar -->
-    @if (config.palette?.enabled !== false) {
+    @if (config.toolbar?.enabled !== false) {
       <div class="graph-toolbar-top">
         <!-- Tools -->
-        <button
-          class="toolbar-btn"
-          [class.active]="activeTool() === 'hand'"
-          title="Hand tool (move nodes)"
-          (click)="switchTool('hand')"
-        >
-          <span class="icon">✋</span>
-        </button>
-        <button
-          class="toolbar-btn"
-          [class.active]="activeTool() === 'line'"
-          title="Line tool (draw connections)"
-          (click)="switchTool('line')"
-        >
-          <span class="icon">∕</span>
-        </button>
+        @if (showToolbarItem('hand')) {
+          <button
+            class="toolbar-btn"
+            [class.active]="activeTool() === 'hand'"
+            title="Hand tool (move nodes)"
+            (click)="switchTool('hand')"
+          >
+            <span class="icon">✋</span>
+          </button>
+        }
+        @if (showToolbarItem('line')) {
+          <button
+            class="toolbar-btn"
+            [class.active]="activeTool() === 'line'"
+            title="Line tool (draw connections)"
+            (click)="switchTool('line')"
+          >
+            <span class="icon">∕</span>
+          </button>
+        }
 
-        <div class="toolbar-divider"></div>
+        @if (showToolbarDivider(['hand', 'line'], ['zoom-in', 'zoom-out'])) {
+          <div class="toolbar-divider"></div>
+        }
 
         <!-- Zoom -->
-        <button
-          class="toolbar-btn"
-          title="Zoom in"
-          (click)="zoomIn()"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
-          </svg>
-        </button>
-        <button
-          class="toolbar-btn"
-          title="Zoom out"
-          (click)="zoomOut()"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="M21 21l-4.35-4.35M8 11h6"/>
-          </svg>
-        </button>
+        @if (showToolbarItem('zoom-in')) {
+          <button
+            class="toolbar-btn"
+            title="Zoom in"
+            (click)="zoomIn()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
+            </svg>
+          </button>
+        }
+        @if (showToolbarItem('zoom-out')) {
+          <button
+            class="toolbar-btn"
+            title="Zoom out"
+            (click)="zoomOut()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35M8 11h6"/>
+            </svg>
+          </button>
+        }
 
-        <div class="toolbar-divider"></div>
+        @if (showToolbarDivider(['hand', 'line', 'zoom-in', 'zoom-out'], ['layout', 'fit'])) {
+          <div class="toolbar-divider"></div>
+        }
 
         <!-- Actions -->
-        <button
-          class="toolbar-btn"
-          title="Auto layout"
-          (click)="applyLayout()"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" rx="1"/>
-            <rect x="14" y="3" width="7" height="7" rx="1"/>
-            <rect x="3" y="14" width="7" height="7" rx="1"/>
-            <rect x="14" y="14" width="7" height="7" rx="1"/>
-          </svg>
-        </button>
-        <button
-          class="toolbar-btn"
-          title="Fit to screen"
-          (click)="fitToScreen()"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-          </svg>
-        </button>
+        @if (showToolbarItem('layout')) {
+          <button
+            class="toolbar-btn"
+            title="Auto layout"
+            (click)="applyLayout()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </button>
+        }
+        @if (showToolbarItem('fit')) {
+          <button
+            class="toolbar-btn"
+            title="Fit to screen"
+            (click)="fitToScreen()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+          </button>
+        }
       </div>
+    }
 
-      <!-- Left vertical palette (node types) - supports multiple columns -->
+    <!-- Left vertical palette (node types) - supports multiple columns -->
+    @if (config.palette?.enabled !== false) {
       <div class="graph-palette-container">
         @for (column of getPaletteColumns(); track $index) {
           <div class="graph-palette-column">

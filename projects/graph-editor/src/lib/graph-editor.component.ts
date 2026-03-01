@@ -18,7 +18,7 @@ import {
 import {NgTemplateOutlet, NgComponentOutlet} from '@angular/common';
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
 import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
-import {ContextMenuEvent, GraphEditorConfig, NodeTypeDefinition, SelectionState, ValidationResult} from './graph-editor.config';
+import {ContextMenuEvent, GraphEditorConfig, NodeTypeDefinition, SelectionState, ToolbarItem, ValidationResult} from './graph-editor.config';
 import {GraphHistoryService} from './services/graph-history.service';
 import {SvgIconDefinition} from './icons/workflow-icons';
 import {NodeHtmlTemplateDirective, NodeSvgTemplateDirective, EdgeTemplateDirective, NodeTemplateContext, EdgeTemplateContext} from './template.directives';
@@ -1502,11 +1502,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (!types || types.length === 0) return [];
     
     // Calculate available height for palette
-    // Top toolbar: 60px (12px top + 36px height + 12px gap)
+    // Top toolbar: 72px (12px top + 36px height + 12px gap + 12px extra)
     // Bottom padding: 12px
     // Each item: 40px (36px height + 4px gap)
     const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-    const availableHeight = viewportHeight - 72 - 12 - 12; // toolbar + gaps + bottom padding
+    const toolbarHeight = this.config.toolbar?.enabled !== false ? 72 : 0;
+    const availableHeight = viewportHeight - toolbarHeight - 12 - 12; // toolbar + gaps + bottom padding
     const itemHeight = 40;
     const maxItemsPerColumn = Math.max(1, Math.floor(availableHeight / itemHeight));
     
@@ -1516,6 +1517,24 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       columns.push(types.slice(i, i + maxItemsPerColumn));
     }
     return columns;
+  }
+
+  /**
+   * Check whether a toolbar item should be shown.
+   * If `config.toolbar.items` is not set, all items are visible.
+   */
+  showToolbarItem(item: ToolbarItem): boolean {
+    const items = this.config.toolbar?.items;
+    return !items || items.includes(item);
+  }
+
+  /**
+   * Check whether a divider should be shown between two toolbar groups.
+   * A divider is shown when at least one item from the group before and
+   * at least one item from the group after are visible.
+   */
+  showToolbarDivider(before: ToolbarItem[], after: ToolbarItem[]): boolean {
+    return before.some(i => this.showToolbarItem(i)) && after.some(i => this.showToolbarItem(i));
   }
 
   /**

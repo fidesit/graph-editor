@@ -152,6 +152,10 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               <option value="minimal">Dark (Bezier + Dot Grid)</option>
             </select>
           </div>
+          <label class="readonly-toggle">
+            <input type="checkbox" [checked]="readonlyMode()" (change)="readonlyMode.set($any($event.target).checked)" />
+            <span>Readonly</span>
+          </label>
           <div class="action-divider"></div>
           <button class="action-btn" (click)="validate()" title="Validate">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -168,7 +172,7 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             </svg>
             <span>Export</span>
           </button>
-          <button class="action-btn" (click)="showImport.set(true)" title="Import JSON">
+          <button class="action-btn" [disabled]="readonlyMode()" (click)="showImport.set(true)" title="Import JSON">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="17 8 12 3 7 8"/>
@@ -217,6 +221,7 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
           #editor
           [config]="editorConfig()"
           [graph]="currentGraph()"
+          [readonly]="readonlyMode()"
           (graphChange)="onGraphChange($event)"
           (nodeClick)="onNodeClick($event)"
           (nodeDoubleClick)="onNodeDoubleClick($event)"
@@ -426,6 +431,22 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
       color: #6b7280;
     }
 
+    .readonly-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #6b7280;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .readonly-toggle input {
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
     .action-divider {
       width: 1px;
       height: 32px;
@@ -478,6 +499,12 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
       background: #f9fafb;
       border-color: #d1d5db;
       color: #111827;
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
     }
 
     .action-btn:active {
@@ -1105,6 +1132,7 @@ export class AppComponent {
   // Computed config based on theme
   editorConfig = computed<GraphEditorConfig>(() => {
     const preset = this.themes[this.currentTheme()];
+    const readonly = this.readonlyMode();
     return {
       nodes: {
         types: this.nodeTypes.map(t => ({ ...t, size: preset.nodeSize })),
@@ -1120,7 +1148,8 @@ export class AppComponent {
         zoom: { enabled: true, min: 0.25, max: 2.0, step: 0.1, wheelEnabled: true },
         pan: { enabled: true }
       },
-      palette: { enabled: true, position: 'left' },
+      palette: { enabled: !readonly, position: 'left' },
+      toolbar: readonly ? { items: ['layout', 'fit'] } : undefined,
       theme: preset.theme,
       validation: { validators: DEMO_VALIDATION_RULES, validateOnChange: false }
     };
@@ -1149,6 +1178,7 @@ export class AppComponent {
 
   private editor = viewChild.required<GraphEditorComponent>('editor');
   showHelp = signal(false);
+  readonlyMode = signal(false);
   contextMenu = signal<ContextMenuEvent | null>(null);
   validationResult = signal<ValidationResult | null>(null);
   editingNode = signal<import('@utisha/graph-editor').GraphNode | null>(null);
@@ -1168,6 +1198,7 @@ export class AppComponent {
   }
 
   onNodeDoubleClick(node: import('@utisha/graph-editor').GraphNode): void {
+    if (this.readonlyMode()) return;
     this.editingNode.set(node);
     // Focus input after dialog renders
     setTimeout(() => {
@@ -1230,6 +1261,7 @@ export class AppComponent {
 
   // Context menu handlers
   onContextMenu(event: ContextMenuEvent): void {
+    if (this.readonlyMode()) return;
     this.contextMenu.set(event);
   }
 

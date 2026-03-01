@@ -26,6 +26,9 @@ export interface GraphEditorConfig {
 
   /** Palette configuration */
   palette?: PaletteConfig;
+
+  /** Top toolbar configuration */
+  toolbar?: ToolbarConfig;
 }
 
 /**
@@ -411,6 +414,28 @@ export interface PaletteConfig {
   position?: 'left' | 'right';         // Palette position (default: 'left')
   collapsible?: boolean;               // Allow collapse (default: true)
   groupByCategory?: boolean;           // Group node types by category (default: false)
+}
+
+/**
+ * Toolbar item identifiers for the top toolbar.
+ * - `'hand'` — Hand tool (move nodes)
+ * - `'line'` — Line tool (draw connections)
+ * - `'zoom-in'` — Zoom in
+ * - `'zoom-out'` — Zoom out
+ * - `'layout'` — Auto layout
+ * - `'fit'` — Fit to screen
+ */
+export type ToolbarItem = 'hand' | 'line' | 'zoom-in' | 'zoom-out' | 'layout' | 'fit';
+
+/**
+ * Top toolbar configuration.
+ * Controls visibility of the top toolbar and which buttons are shown.
+ */
+export interface ToolbarConfig {
+  /** Show the top toolbar (default: true) */
+  enabled?: boolean;
+  /** Which toolbar buttons to show. If omitted, all buttons are shown. */
+  items?: ToolbarItem[];
 }
 
 /**
