@@ -150,6 +150,7 @@ onGraphChange(graph: Graph): void {
 | `palette` | `PaletteConfig` | Node palette configuration |
 | `layout` | `LayoutConfig` | Layout algorithm (dagre) |
 | `theme` | `ThemeConfig` | Visual theme (shadows, CSS variables) |
+| `toolbar` | `ToolbarConfig` | Top toolbar visibility and button selection |
 
 ### Node Type Definition
 
