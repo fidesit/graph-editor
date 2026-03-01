@@ -1202,6 +1202,8 @@ export class AppComponent {
   onThemeChange(event: Event): void {
     const select = event.target as HTMLSelectElement;
     this.currentTheme.set(select.value);
+    // Re-layout after theme change since node sizes differ per preset
+    setTimeout(() => this.editor().applyLayout(), 50);
   }
 
 
