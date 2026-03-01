@@ -28,5 +28,4 @@ yarn-error.log*
 .env.local
 
 nul
-AGENTS.md
 temp/*
