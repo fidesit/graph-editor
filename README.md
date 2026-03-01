@@ -12,6 +12,8 @@ Configuration-driven visual graph editor for Angular 19+.
 
 ![Graph Editor Demo](docs/demo.gif)
 
+![Theme Presets](files/themes.png)
+
 ## Features
 
 - ⚙️ **Configuration-driven** — No hardcoded domain logic
