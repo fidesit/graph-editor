@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-03-01
+
+### Added
+
+- **Comprehensive theming system** — New `ThemeConfig` sub-interfaces (`CanvasTheme`, `NodeTheme`, `EdgeTheme`, `PortTheme`, `SelectionTheme`, `FontTheme`, `ToolbarTheme`) with a `ResolvedTheme` resolver that fills sensible defaults. All hardcoded colors replaced with `--ge-*` CSS custom properties.
+- **Template injection** — `ng-template` directives for custom node and edge rendering:
+  - `geNodeHtml` — Render nodes as HTML inside `foreignObject`
+  - `geNodeSvg` — Render nodes as native SVG elements
+  - `geEdge` — Custom edge path rendering
+  - Full type-safe template context via `NodeTemplateContext` and `EdgeTemplateContext`
+- **Custom node components** — `NodeTypeDefinition.component` now wired up via `ngComponentOutlet` inside `foreignObject`
+- **Bezier edge paths** — `edge.pathType: 'bezier'` with cubic bezier curves and control points offset from port direction
+- **Step edge paths** — `edge.pathType: 'step'` with orthogonal routing through midpoints
+- **Dot grid pattern** — `canvas.gridType: 'dot'` as alternative to line grid
+- **Per-type node styles** — `node.typeStyles` record for per-node-type visual overrides (background, border, accent)
+- **Toolbar theming** — `toolbar` config controls top toolbar, left palette, and edge direction selector appearance (background, buttons, hover/active states, dividers)
+- **Demo theme presets** — 4 presets showcasing capabilities: Default (straight), Compact (bezier + dot grid + indigo), Detailed (step + amber + per-type styles + serif), Dark (bezier + dot grid + zinc + cyan + monospace)
+
+### Fixed
+
+- **Bezier arrow orientation** — Arrowheads on bezier edges now follow the curve tangent instead of being axis-locked
+- **Arrow-to-node gap** — Marker `refX` aligned with actual arrow tip position, eliminating the visible gap between arrowhead and target node
+
+
 ## [1.0.5] - 2026-02-28
 
 ### Added

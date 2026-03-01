@@ -290,6 +290,17 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
                 <li><kbd>Esc</kbd> <span>Cancel / Deselect</span></li>
               </ul>
             </div>
+            <div class="help-card">
+              <div class="card-icon">🎨</div>
+              <h3>Theming</h3>
+              <ul>
+                <li><kbd>Theme picker</kbd> <span>Switch presets</span></li>
+                <li><kbd>ThemeConfig</kbd> <span>Canvas, nodes, edges, ports, toolbar</span></li>
+                <li><kbd>ng-template</kbd> <span>Custom node/edge rendering</span></li>
+                <li><kbd>pathType</kbd> <span>straight / bezier / step</span></li>
+                <li><kbd>gridType</kbd> <span>line / dot</span></li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

@@ -16,7 +16,7 @@ Configuration-driven visual graph editor for Angular 19+.
 
 - ⚙️ **Configuration-driven** — No hardcoded domain logic
 - 🎯 **Type-safe** — Full TypeScript support with strict mode
-- 🎭 **Themeable** — CSS custom properties + optional shadows
+- 🎭 **Themeable** — Full theme config (canvas, nodes, edges, ports, selection, fonts, toolbar) + CSS custom properties
 - ⌨️ **Keyboard shortcuts** — Delete, arrow keys, escape, undo/redo
 - 📦 **Lightweight** — Only Angular + dagre dependencies
 - 🔌 **Framework-agnostic data** — Works with any backend/state management
@@ -27,6 +27,8 @@ Configuration-driven visual graph editor for Angular 19+.
 - 🔲 **Node resize** — Drag corner handle to resize nodes (Hand tool)
 - 📝 **Text wrapping** — Labels wrap and auto-size to fit within node bounds
 - 🛠️ **Built-in toolbar** — Tools, zoom controls, layout actions in top bar; node palette on left
+- 🧩 **Custom rendering** — ng-template injection for nodes (HTML or SVG) and edges, plus `ngComponentOutlet` support
+- 🔀 **Edge path strategies** — Straight, bezier, and step routing algorithms
 
 ## Installation
 
@@ -376,7 +378,7 @@ npm test
 
 ## Roadmap
 
-- [ ] Custom node components via `foreignObject`
+- [x] ~~Custom node components via `foreignObject`~~ — Template injection + `ngComponentOutlet`
 - [ ] Port-based connections with type checking
 - [x] ~~Context menus~~ — Event emits on right-click (see demo for example UI)
 - [x] ~~Multi-select~~ — Box selection (Shift+drag) and Ctrl+Click toggle
@@ -386,6 +388,7 @@ npm test
 - [x] ~~Custom SVG icons~~ — Define icons with `iconSvg` property
 - [x] ~~Node resize~~ — Drag corner handle with Hand tool
 - [x] ~~Text wrapping~~ — Labels wrap and auto-size within node bounds
+- [x] ~~Comprehensive theming~~ — Full ThemeConfig with 7 sub-interfaces + CSS custom properties bridge
 - [ ] Minimap
 - [ ] Accessibility improvements
 
