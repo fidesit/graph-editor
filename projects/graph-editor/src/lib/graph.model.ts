@@ -66,6 +66,17 @@ export interface EdgeStyle {
 }
 
 /**
+ * Snap guide line shown during node drag for alignment.
+ */
+export interface GuideLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  orientation: 'horizontal' | 'vertical';
+}
+
+/**
  * Complete graph structure.
  */
 export interface Graph {

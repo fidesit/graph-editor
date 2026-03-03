@@ -236,6 +236,14 @@
   fill: var(--ge-selection-color, #3b82f6);
 }
 
+.snap-guide {
+  stroke: var(--ge-selection-color, #3b82f6);
+  stroke-width: 1;
+  stroke-dasharray: 4, 3;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
 .attachment-point {
   cursor: crosshair;
   transition: all 0.2s;

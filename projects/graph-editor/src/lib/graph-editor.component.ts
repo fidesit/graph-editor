@@ -17,7 +17,7 @@ import {
 } from '@angular/core';
 import {NgTemplateOutlet, NgComponentOutlet} from '@angular/common';
 // dagre is loaded dynamically in applyLayout() to avoid compile-time resolution issues
-import {Graph, GraphEdge, GraphNode, Position} from './graph.model';
+import {Graph, GraphEdge, GraphNode, GuideLine, Position} from './graph.model';
 import {ContextMenuEvent, GraphEditorConfig, NodeTypeDefinition, SelectionState, ToolbarItem, ValidationResult} from './graph-editor.config';
 import {GraphHistoryService} from './services/graph-history.service';
 import {SvgIconDefinition} from './icons/workflow-icons';
@@ -125,6 +125,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Clipboard for copy/paste
   private clipboard: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
   private pasteCount = 0; // Track successive pastes for cascading offset
+
+  // Snap guides (alignment lines shown during node drag)
+  snapGuides = signal<GuideLine[]>([]);
 
   editingEdgeLabelScreenPos = computed(() => {
     const editing = this.editingEdgeLabel();
@@ -817,9 +820,18 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const dy = (event.clientY - this.resizeStartMousePos.y) / this.scale();
       
       // Calculate new size, enforcing minimum
-      const newWidth = Math.max(this.resizeMinSize.width, this.resizeStartSize.width + dx);
-      const newHeight = Math.max(this.resizeMinSize.height, this.resizeStartSize.height + dy);
-      
+      let newWidth = Math.max(this.resizeMinSize.width, this.resizeStartSize.width + dx);
+      let newHeight = Math.max(this.resizeMinSize.height, this.resizeStartSize.height + dy);
+
+      // Snap guides for resize: snap the right/bottom edges to other nodes
+      const nodePos = this.resizingNode.position;
+      const candidateSize = { width: newWidth, height: newHeight };
+      const draggedIds = new Set([this.resizingNode.id]);
+      const { snappedSize, guides } = this.computeResizeSnapGuides(nodePos, candidateSize, draggedIds);
+      this.snapGuides.set(guides);
+      newWidth = snappedSize.width;
+      newHeight = snappedSize.height;
+
       // Update node size
       const graph = this.internalGraph();
       const nodeIndex = graph.nodes.findIndex(n => n.id === this.resizingNode!.id);
@@ -862,22 +874,56 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
       // Check if we're dragging multiple selected nodes
       if (this.draggedNodeOffsets.size > 1) {
-        // Multi-node drag: move all selected nodes
+        // Multi-node drag: compute bounding box for snap guides
+        const draggedNodeEntries: { nodeId: string; offset: Position; nodeIndex: number }[] = [];
+        let bbLeft = Infinity, bbTop = Infinity, bbRight = -Infinity, bbBottom = -Infinity;
+
         for (const [nodeId, offset] of this.draggedNodeOffsets) {
           const nodeIndex = updatedNodes.findIndex(n => n.id === nodeId);
           if (nodeIndex === -1) continue;
+          draggedNodeEntries.push({ nodeId, offset, nodeIndex });
 
-          let x = mouseX - offset.x;
-          let y = mouseY - offset.y;
+          const candidateX = mouseX - offset.x;
+          const candidateY = mouseY - offset.y;
+          const size = this.getNodeSize(updatedNodes[nodeIndex]);
+          bbLeft = Math.min(bbLeft, candidateX);
+          bbTop = Math.min(bbTop, candidateY);
+          bbRight = Math.max(bbRight, candidateX + size.width);
+          bbBottom = Math.max(bbBottom, candidateY + size.height);
+        }
 
-          // Smart snap to grid
+        const bbWidth = bbRight - bbLeft;
+        const bbHeight = bbBottom - bbTop;
+        const draggedIds = new Set(this.draggedNodeOffsets.keys());
+
+        // Compute snap guides based on bounding box
+        const { snappedPos: snappedBB, guides } = this.computeSnapGuides(
+          { x: bbLeft, y: bbTop },
+          { width: bbWidth, height: bbHeight },
+          draggedIds
+        );
+        this.snapGuides.set(guides);
+
+        const snapDx = snappedBB.x - bbLeft;
+        const snapDy = snappedBB.y - bbTop;
+
+        // Apply snapped positions to all dragged nodes
+        for (const { nodeId, offset, nodeIndex } of draggedNodeEntries) {
+          let x = mouseX - offset.x + snapDx;
+          let y = mouseY - offset.y + snapDy;
+
+          // Grid snap (only when no guide snap was applied on that axis)
           if (this.config.canvas?.grid?.snap) {
             const gridSize = this.config.canvas.grid.size || 20;
             const snapThreshold = gridSize / 4;
-            const snapX = Math.round(x / gridSize) * gridSize;
-            const snapY = Math.round(y / gridSize) * gridSize;
-            if (Math.abs(x - snapX) < snapThreshold) x = snapX;
-            if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+            if (snapDx === 0) {
+              const snapX = Math.round(x / gridSize) * gridSize;
+              if (Math.abs(x - snapX) < snapThreshold) x = snapX;
+            }
+            if (snapDy === 0) {
+              const snapY = Math.round(y / gridSize) * gridSize;
+              if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+            }
           }
 
           updatedNodes[nodeIndex] = { ...updatedNodes[nodeIndex], position: { x, y } };
@@ -888,14 +934,26 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         let x = mouseX - this.dragOffset.x;
         let y = mouseY - this.dragOffset.y;
 
-        // Smart snap to grid
+        const nodeSize = this.getNodeSize(this.draggedNode!);
+        const draggedIds = new Set([this.draggedNode!.id]);
+        const { snappedPos, guides } = this.computeSnapGuides({ x, y }, nodeSize, draggedIds);
+        this.snapGuides.set(guides);
+
+        x = snappedPos.x;
+        y = snappedPos.y;
+
+        // Grid snap (only when no guide snap was applied on that axis)
         if (this.config.canvas?.grid?.snap) {
           const gridSize = this.config.canvas.grid.size || 20;
           const snapThreshold = gridSize / 4;
-          const snapX = Math.round(x / gridSize) * gridSize;
-          const snapY = Math.round(y / gridSize) * gridSize;
-          if (Math.abs(x - snapX) < snapThreshold) x = snapX;
-          if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+          if (x === mouseX - this.dragOffset.x) { // No X guide snap
+            const snapX = Math.round(x / gridSize) * gridSize;
+            if (Math.abs(x - snapX) < snapThreshold) x = snapX;
+          }
+          if (y === mouseY - this.dragOffset.y) { // No Y guide snap
+            const snapY = Math.round(y / gridSize) * gridSize;
+            if (Math.abs(y - snapY) < snapThreshold) y = snapY;
+          }
         }
 
         const nodeIndex = updatedNodes.findIndex(n => n.id === this.draggedNode!.id);
@@ -1063,6 +1121,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.hoveredPort = null;
     this.showAttachmentPoints.set(null);
     this.resizingNode = null;
+    this.snapGuides.set([]);
   }
 
   onNodeMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1437,6 +1496,228 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   private generateEdgeId(): string {
     return `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
+   * Compute snap guides and snapped position for a dragged node/selection bounding box.
+   * Compares edges (left, right, top, bottom) and centers of the dragged rect
+   * against all other (non-dragged) nodes.
+   *
+   * @param candidatePos  Top-left position of the dragged rect (before snapping)
+   * @param dragSize      Size of the dragged rect (single node size or multi-select bounding box)
+   * @param draggedIds    IDs of nodes currently being dragged (excluded from comparison)
+   * @returns             Snapped position and guide lines to display
+   */
+  private computeSnapGuides(
+    candidatePos: Position,
+    dragSize: { width: number; height: number },
+    draggedIds: Set<string>
+  ): { snappedPos: Position; guides: GuideLine[] } {
+    const SNAP_THRESHOLD = 5 / this.scale(); // 5px in screen space, adjusted for zoom
+    const DISTANCE_LIMIT = 500; // Skip nodes too far away (canvas px)
+
+    const graph = this.internalGraph();
+    const otherNodes = graph.nodes.filter(n => !draggedIds.has(n.id));
+
+    // Dragged rect reference lines
+    const dragLeft = candidatePos.x;
+    const dragRight = candidatePos.x + dragSize.width;
+    const dragCx = candidatePos.x + dragSize.width / 2;
+    const dragTop = candidatePos.y;
+    const dragBottom = candidatePos.y + dragSize.height;
+    const dragCy = candidatePos.y + dragSize.height / 2;
+
+    // Collect best snaps per axis
+    let bestSnapX: { delta: number; guides: GuideLine[] } | null = null;
+    let bestSnapY: { delta: number; guides: GuideLine[] } | null = null;
+
+    for (const other of otherNodes) {
+      const otherSize = this.getNodeSize(other);
+      const ox = other.position.x;
+      const oy = other.position.y;
+
+      // Early distance cull
+      if (Math.abs(dragCx - (ox + otherSize.width / 2)) > DISTANCE_LIMIT &&
+          Math.abs(dragCy - (oy + otherSize.height / 2)) > DISTANCE_LIMIT) {
+        continue;
+      }
+
+      const otherLeft = ox;
+      const otherRight = ox + otherSize.width;
+      const otherCx = ox + otherSize.width / 2;
+      const otherTop = oy;
+      const otherBottom = oy + otherSize.height;
+      const otherCy = oy + otherSize.height / 2;
+
+      // Vertical alignment candidates (snap X axis)
+      const vCandidates: { delta: number; dragRef: number; otherRef: number }[] = [
+        { delta: otherLeft - dragLeft, dragRef: dragLeft, otherRef: otherLeft },         // left-left
+        { delta: otherRight - dragRight, dragRef: dragRight, otherRef: otherRight },     // right-right
+        { delta: otherLeft - dragRight, dragRef: dragRight, otherRef: otherLeft },       // right-left
+        { delta: otherRight - dragLeft, dragRef: dragLeft, otherRef: otherRight },       // left-right
+        { delta: otherCx - dragCx, dragRef: dragCx, otherRef: otherCx },                // center-center
+      ];
+
+      for (const vc of vCandidates) {
+        const absDelta = Math.abs(vc.delta);
+        if (absDelta > SNAP_THRESHOLD) continue;
+        if (!bestSnapX || absDelta < Math.abs(bestSnapX.delta)) {
+          // Vertical guide line at the snap X position
+          const guideX = vc.otherRef;
+          const minY = Math.min(dragTop + vc.delta, otherTop) - 20;
+          const maxY = Math.max(dragBottom + vc.delta, otherBottom) + 20;
+          bestSnapX = {
+            delta: vc.delta,
+            guides: [{ x1: guideX, y1: minY, x2: guideX, y2: maxY, orientation: 'vertical' }]
+          };
+        }
+      }
+
+      // Horizontal alignment candidates (snap Y axis)
+      const hCandidates: { delta: number; dragRef: number; otherRef: number }[] = [
+        { delta: otherTop - dragTop, dragRef: dragTop, otherRef: otherTop },             // top-top
+        { delta: otherBottom - dragBottom, dragRef: dragBottom, otherRef: otherBottom },  // bottom-bottom
+        { delta: otherTop - dragBottom, dragRef: dragBottom, otherRef: otherTop },        // bottom-top
+        { delta: otherBottom - dragTop, dragRef: dragTop, otherRef: otherBottom },        // top-bottom
+        { delta: otherCy - dragCy, dragRef: dragCy, otherRef: otherCy },                 // center-center
+      ];
+
+      for (const hc of hCandidates) {
+        const absDelta = Math.abs(hc.delta);
+        if (absDelta > SNAP_THRESHOLD) continue;
+        if (!bestSnapY || absDelta < Math.abs(bestSnapY.delta)) {
+          const guideY = hc.otherRef;
+          const minX = Math.min(dragLeft + (bestSnapX?.delta ?? 0), otherLeft) - 20;
+          const maxX = Math.max(dragRight + (bestSnapX?.delta ?? 0), otherRight) + 20;
+          bestSnapY = {
+            delta: hc.delta,
+            guides: [{ x1: minX, y1: guideY, x2: maxX, y2: guideY, orientation: 'horizontal' }]
+          };
+        }
+      }
+    }
+
+    const snappedPos: Position = {
+      x: candidatePos.x + (bestSnapX?.delta ?? 0),
+      y: candidatePos.y + (bestSnapY?.delta ?? 0)
+    };
+
+    const guides: GuideLine[] = [
+      ...(bestSnapX?.guides ?? []),
+      ...(bestSnapY?.guides ?? [])
+    ];
+
+    return { snappedPos, guides };
+  }
+
+  /**
+   * Compute snap guides during node resize.
+   * Position (top-left) is fixed; only width/height change.
+   * Snaps the right edge, bottom edge, and center of the resizing node
+   * to edges/centers of other nodes.
+   */
+  private computeResizeSnapGuides(
+    nodePos: Position,
+    candidateSize: { width: number; height: number },
+    draggedIds: Set<string>
+  ): { snappedSize: { width: number; height: number }; guides: GuideLine[] } {
+    const SNAP_THRESHOLD = 5 / this.scale();
+    const DISTANCE_LIMIT = 500;
+
+    const graph = this.internalGraph();
+    const otherNodes = graph.nodes.filter(n => !draggedIds.has(n.id));
+
+    // Resizing node reference lines
+    const left = nodePos.x;
+    const top = nodePos.y;
+    const right = left + candidateSize.width;
+    const bottom = top + candidateSize.height;
+    const cx = left + candidateSize.width / 2;
+    const cy = top + candidateSize.height / 2;
+
+    let bestSnapW: { delta: number; guides: GuideLine[] } | null = null;
+    let bestSnapH: { delta: number; guides: GuideLine[] } | null = null;
+
+    for (const other of otherNodes) {
+      const otherSize = this.getNodeSize(other);
+      const ox = other.position.x;
+      const oy = other.position.y;
+
+      if (Math.abs(cx - (ox + otherSize.width / 2)) > DISTANCE_LIMIT &&
+          Math.abs(cy - (oy + otherSize.height / 2)) > DISTANCE_LIMIT) {
+        continue;
+      }
+
+      const otherLeft = ox;
+      const otherRight = ox + otherSize.width;
+      const otherCx = ox + otherSize.width / 2;
+      const otherTop = oy;
+      const otherBottom = oy + otherSize.height;
+      const otherCy = oy + otherSize.height / 2;
+
+      // Width snap candidates: snap right edge or center-x to other nodes
+      const wCandidates = [
+        { delta: otherLeft - right, ref: otherLeft },     // right → other left
+        { delta: otherRight - right, ref: otherRight },   // right → other right
+        { delta: otherCx - right, ref: otherCx },         // right → other center
+        { delta: otherCx - cx, ref: otherCx },            // center → other center (adjusts width by 2×delta)
+      ];
+
+      for (let i = 0; i < wCandidates.length; i++) {
+        const wc = wCandidates[i];
+        const absDelta = Math.abs(wc.delta);
+        if (absDelta > SNAP_THRESHOLD) continue;
+        // For center-center alignment, the width change is 2× the delta
+        const isCenter = i === 3;
+        const widthDelta = isCenter ? wc.delta * 2 : wc.delta;
+        if (!bestSnapW || absDelta < Math.abs(bestSnapW.delta)) {
+          const guideX = wc.ref;
+          const minY = Math.min(top, otherTop) - 20;
+          const maxY = Math.max(bottom + widthDelta, otherBottom) + 20;
+          bestSnapW = {
+            delta: widthDelta,
+            guides: [{ x1: guideX, y1: minY, x2: guideX, y2: maxY, orientation: 'vertical' }]
+          };
+        }
+      }
+
+      // Height snap candidates: snap bottom edge or center-y to other nodes
+      const hCandidates = [
+        { delta: otherTop - bottom, ref: otherTop },       // bottom → other top
+        { delta: otherBottom - bottom, ref: otherBottom },  // bottom → other bottom
+        { delta: otherCy - bottom, ref: otherCy },          // bottom → other center
+        { delta: otherCy - cy, ref: otherCy },              // center → other center (adjusts height by 2×delta)
+      ];
+
+      for (let i = 0; i < hCandidates.length; i++) {
+        const hc = hCandidates[i];
+        const absDelta = Math.abs(hc.delta);
+        if (absDelta > SNAP_THRESHOLD) continue;
+        const isCenter = i === 3;
+        const heightDelta = isCenter ? hc.delta * 2 : hc.delta;
+        if (!bestSnapH || absDelta < Math.abs(bestSnapH.delta)) {
+          const guideY = hc.ref;
+          const minX = Math.min(left, otherLeft) - 20;
+          const maxX = Math.max(right + (bestSnapW?.delta ?? 0), otherRight) + 20;
+          bestSnapH = {
+            delta: heightDelta,
+            guides: [{ x1: minX, y1: guideY, x2: maxX, y2: guideY, orientation: 'horizontal' }]
+          };
+        }
+      }
+    }
+
+    const snappedSize = {
+      width: candidateSize.width + (bestSnapW?.delta ?? 0),
+      height: candidateSize.height + (bestSnapH?.delta ?? 0)
+    };
+
+    const guides: GuideLine[] = [
+      ...(bestSnapW?.guides ?? []),
+      ...(bestSnapH?.guides ?? [])
+    ];
+
+    return { snappedSize, guides };
   }
 
   /** Copy selected nodes and their internal edges to the internal clipboard. */

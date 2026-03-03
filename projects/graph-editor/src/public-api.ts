@@ -10,7 +10,8 @@ export type {
   NodeMetadata,
   EdgeMetadata,
   EdgeStyle,
-  GraphMetadata
+  GraphMetadata,
+  GuideLine
 } from './lib/graph.model';
 
 // Configuration - use 'export type' for re-exports

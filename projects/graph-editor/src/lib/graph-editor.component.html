@@ -422,7 +422,18 @@
           }
         }
 
-        <!-- Layer 5: Selection box (Shift+drag) -->
+        <!-- Layer 5: Snap guide lines (during node drag) -->
+        @for (guide of snapGuides(); track $index) {
+          <line
+            class="snap-guide"
+            [attr.x1]="guide.x1"
+            [attr.y1]="guide.y1"
+            [attr.x2]="guide.x2"
+            [attr.y2]="guide.y2"
+          />
+        }
+
+        <!-- Layer 6: Selection box (Shift+drag) -->
         @if (selectionBox()) {
           <rect
             class="selection-box"
