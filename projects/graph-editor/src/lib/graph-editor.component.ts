@@ -971,8 +971,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Event handlers
   onCanvasMouseDown(event: MouseEvent): void {
-    if (this.readonly) return;
-
     // Close layout dropdown on any canvas interaction
     this.layoutDropdownOpen.set(false);
 
@@ -991,17 +989,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
 
-      if (event.shiftKey && this.activeTool() === 'hand') {
-        // Shift+drag = box selection (only with hand tool)
+      if (!this.readonly && event.shiftKey && this.activeTool() === 'hand') {
+        // Shift+drag = box selection (only with hand tool, not in readonly)
         this.isBoxSelecting = true;
         this.boxSelectStart = { x: mouseX, y: mouseY };
         this.selectionBox.set({ x: mouseX, y: mouseY, width: 0, height: 0 });
       } else {
-        // Normal drag = pan
+        // Normal drag = pan (always allowed, including readonly)
         this.isPanning = true;
       }
       this.lastMousePos = { x: event.clientX, y: event.clientY };
-      this.clearSelection();
+      if (!this.readonly) {
+        this.clearSelection();
+      }
+    } else if (this.readonly) {
+      // In readonly, block all interactive element interactions (nodes, edges, ports)
+      return;
     }
   }
 
