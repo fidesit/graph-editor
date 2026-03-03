@@ -102,10 +102,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   showAttachmentPoints = signal<string | null>(null); // nodeId to show ports for
 
   // Active tool
-  activeTool = signal<'hand' | 'line'>('hand');
+  activeTool = signal<'hand'>('hand');
 
-  // Line tool state
-  private pendingEdge: { sourceId: string; sourcePort: 'top' | 'bottom' | 'left' | 'right' } | null = null;
+  // Drag-to-connect state (mousedown on attachment point → drag → mouseup on target port)
+  private connectingFrom: { nodeId: string; port: 'top' | 'bottom' | 'left' | 'right' } | null = null;
 
   // Preview line for line tool (rubber-band from source to cursor)
   previewLine = signal<{ source: Position; target: Position } | null>(null);
@@ -371,7 +371,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         event.preventDefault();
         return;
       }
-      this.pendingEdge = null;
+      this.connectingFrom = null;
       this.previewLine.set(null);
       this.selection.set({ nodes: [], edges: [] });
       this.selectionChange.emit(this.selection());
@@ -513,34 +513,16 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
   }
 
-  switchTool(tool: 'hand' | 'line'): void {
-    const previousTool = this.activeTool();
-
-    // Cancel any in-progress line drawing
-    this.pendingEdge = null;
+  switchTool(tool: 'hand'): void {
+    // Cancel any in-progress connection
+    this.connectingFrom = null;
     this.previewLine.set(null);
     this.showAttachmentPoints.set(null);
 
-    // Preserve node selection when switching hand → line
-    if (!(previousTool === 'hand' && tool === 'line')) {
-      this.selection.set({ nodes: [], edges: [] });
-      this.selectionChange.emit(this.selection());
-    }
+    this.selection.set({ nodes: [], edges: [] });
+    this.selectionChange.emit(this.selection());
 
     this.activeTool.set(tool);
-
-    // Hand → line with a node selected: start edge from that node
-    if (previousTool === 'hand' && tool === 'line') {
-      const sel = this.selection();
-      if (sel.nodes.length === 1) {
-        this.pendingEdge = { sourceId: sel.nodes[0], sourcePort: 'bottom' };
-      }
-    }
-  }
-
-  /** @deprecated Use switchTool('line') instead */
-  switchToLineTool(): void {
-    this.switchTool('line');
   }
 
   onEdgeClick(event: MouseEvent, edge: GraphEdge): void {
@@ -765,15 +747,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     // Prevent native text selection on all canvas mousedowns (suppresses Edge mini menu)
     event.preventDefault();
-
-    // Cancel pending edge on empty space click
-    if (this.pendingEdge) {
-      this.pendingEdge = null;
-      this.previewLine.set(null);
-      this.showAttachmentPoints.set(null);
-      this.hoveredPort = null;
-      this.clearSelection();
-    }
 
     const target = event.target as SVGElement;
     const isNode = !!target.closest('.graph-node');
@@ -1007,22 +980,25 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         this.hoveredPort = null;
         this.hoveredNodeId = null;
       }
-    } else if (this.pendingEdge && this.activeTool() === 'line') {
-      // Line tool pending state - show rubber-band preview + attachment points on hovered node
+    } else if (this.connectingFrom) {
+      // Rubber-band preview for drag-to-connect (mousedown on port → drag → mouseup on target port)
+      const sourceId = this.connectingFrom.nodeId;
+      const sourcePort = this.connectingFrom.port;
+
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
 
       // Get source port position
-      const sourceNode = this.internalGraph().nodes.find(n => n.id === this.pendingEdge!.sourceId);
+      const sourceNode = this.internalGraph().nodes.find(n => n.id === sourceId);
       if (sourceNode) {
-        const sourcePoint = this.getPortWorldPosition(sourceNode, this.pendingEdge.sourcePort);
+        const sourcePoint = this.getPortWorldPosition(sourceNode, sourcePort);
 
         // Check if cursor is near a node - snap to its closest port
         const hoveredNodeId = this.findNodeAtPosition({ x: mouseX, y: mouseY });
         let targetPoint: Position = { x: mouseX, y: mouseY };
 
-        if (hoveredNodeId && hoveredNodeId !== this.pendingEdge.sourceId) {
+        if (hoveredNodeId && hoveredNodeId !== sourceId) {
           // Show attachment points on hovered node
           this.showAttachmentPoints.set(hoveredNodeId);
 
@@ -1088,6 +1064,32 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.selectionBox.set(null);
     }
 
+    // Handle drag-to-connect completion (hand tool: mousedown on port → drag → mouseup)
+    if (this.connectingFrom && this.hoveredPort && this.hoveredPort.nodeId !== this.connectingFrom.nodeId) {
+      const sourceNode = this.internalGraph().nodes.find(n => n.id === this.connectingFrom!.nodeId);
+      const targetNode = this.internalGraph().nodes.find(n => n.id === this.hoveredPort!.nodeId);
+      if (sourceNode && targetNode) {
+        const sourcePort = this.connectingFrom.port;
+        const targetPort = this.hoveredPort.port;
+
+        const newEdge: GraphEdge = {
+          id: this.generateEdgeId(),
+          source: this.connectingFrom.nodeId,
+          target: this.hoveredPort.nodeId,
+          sourcePort,
+          targetPort
+        };
+
+        const graph = this.internalGraph();
+        this.internalGraph.set({
+          ...graph,
+          edges: [...graph.edges, newEdge]
+        });
+        this.emitGraphChange();
+        this.edgeAdded.emit(newEdge);
+      }
+    }
+
     // Handle edge reconnection with port snapping
     if (this.draggedEdge && this.hoveredNodeId && this.hoveredPort) {
       const graph = this.internalGraph();
@@ -1122,6 +1124,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.showAttachmentPoints.set(null);
     this.resizingNode = null;
     this.snapGuides.set([]);
+
+    // Clear drag-to-connect state and preview line
+    if (this.connectingFrom) {
+      this.connectingFrom = null;
+      this.previewLine.set(null);
+    }
   }
 
   onNodeMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1159,112 +1167,38 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   onNodeClick(event: MouseEvent, node: GraphNode): void {
-    if (this.activeTool() === 'line') {
-      event.stopPropagation();
-
-      if (!this.pendingEdge) {
-        // First click - start edge from this node
-        // Pick initial port based on geometry (will be recalculated on second click)
-        this.pendingEdge = { sourceId: node.id, sourcePort: 'bottom' };
-        this.selectNode(node.id);
-      } else if (this.pendingEdge.sourceId !== node.id) {
-        // Second click on different node - complete the edge
-        const sourceNode = this.internalGraph().nodes.find(n => n.id === this.pendingEdge!.sourceId);
-        if (sourceNode) {
-          const sourcePort = this.findClosestPortForEdge(sourceNode, node, 'source');
-          const targetPort = this.findClosestPortForEdge(node, sourceNode, 'target');
-
-          const newEdge: GraphEdge = {
-            id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            source: this.pendingEdge.sourceId,
-            target: node.id,
-            sourcePort,
-            targetPort
-          };
-
-          const graph = this.internalGraph();
-          this.internalGraph.set({
-            ...graph,
-            edges: [...graph.edges, newEdge]
-          });
-          this.emitGraphChange();
-          this.edgeAdded.emit(newEdge);
-        }
-        this.pendingEdge = null;
-        this.previewLine.set(null);
-        this.showAttachmentPoints.set(null);
-        this.hoveredPort = null;
-        this.clearSelection();
-      } else {
-        // Clicked same node - cancel
-        this.pendingEdge = null;
-        this.previewLine.set(null);
-        this.showAttachmentPoints.set(null);
-        this.hoveredPort = null;
-        this.clearSelection();
-      }
+    // Hand tool - select or toggle selection
+    // Skip selection change if we just finished dragging
+    if (this.didDrag) {
+      this.didDrag = false;
+      return;
+    }
+    if (event.ctrlKey || event.metaKey) {
+      // Ctrl/Cmd+Click: toggle node in selection
+      this.toggleNodeSelection(node.id);
     } else {
-      // Hand tool - select or toggle selection
-      // Skip selection change if we just finished dragging
-      if (this.didDrag) {
-        this.didDrag = false;
-        return;
-      }
-      if (event.ctrlKey || event.metaKey) {
-        // Ctrl/Cmd+Click: toggle node in selection
-        this.toggleNodeSelection(node.id);
-      } else {
-        // Normal click: replace selection with this node
-        this.selectNode(node.id);
-      }
+      // Normal click: replace selection with this node
+      this.selectNode(node.id);
+    }
+  }
+
+  onAttachmentPointMouseDown(event: MouseEvent, node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): void {
+    event.stopPropagation();
+    if (this.readonly) return;
+
+    // In hand tool mode, start drag-to-connect
+    if (this.activeTool() === 'hand') {
+      this.connectingFrom = { nodeId: node.id, port };
+
+      // Set initial preview line from port position
+      const sourcePoint = this.getPortWorldPosition(node, port);
+      this.previewLine.set({ source: sourcePoint, target: sourcePoint });
     }
   }
 
   onAttachmentPointClick(event: MouseEvent, node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): void {
+    // No-op: connections are now created via drag-to-connect (onAttachmentPointMouseDown)
     event.stopPropagation();
-    if (this.readonly) return;
-
-    if (this.activeTool() === 'line') {
-      if (!this.pendingEdge) {
-        // First click on attachment point - start edge from this specific port
-        this.pendingEdge = { sourceId: node.id, sourcePort: port };
-        this.selectNode(node.id);
-      } else if (this.pendingEdge.sourceId !== node.id) {
-        // Second click - complete edge to this specific port
-        const sourceNode = this.internalGraph().nodes.find(n => n.id === this.pendingEdge!.sourceId);
-        if (sourceNode) {
-          const sourcePort = this.findClosestPortForEdge(sourceNode, node, 'source');
-
-          const newEdge: GraphEdge = {
-            id: `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            source: this.pendingEdge.sourceId,
-            target: node.id,
-            sourcePort,
-            targetPort: port
-          };
-
-          const graph = this.internalGraph();
-          this.internalGraph.set({
-            ...graph,
-            edges: [...graph.edges, newEdge]
-          });
-          this.emitGraphChange();
-          this.edgeAdded.emit(newEdge);
-        }
-        this.pendingEdge = null;
-        this.previewLine.set(null);
-        this.showAttachmentPoints.set(null);
-        this.hoveredPort = null;
-        this.clearSelection();
-      } else {
-        // Clicked same node - cancel
-        this.pendingEdge = null;
-        this.previewLine.set(null);
-        this.showAttachmentPoints.set(null);
-        this.hoveredPort = null;
-        this.clearSelection();
-      }
-    }
   }
 
   onEdgeEndpointMouseDown(event: MouseEvent, edge: GraphEdge, endpoint: 'source' | 'target'): void {

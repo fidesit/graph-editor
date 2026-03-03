@@ -455,8 +455,7 @@ export interface PaletteConfig {
 
 /**
  * Toolbar item identifiers for the top toolbar.
- * - `'hand'` — Hand tool (move nodes)
- * - `'line'` — Line tool (draw connections)
+ * - `'hand'` — Hand tool (move nodes, drag-to-connect from ports)
  * - `'zoom-in'` — Zoom in
  * - `'zoom-out'` — Zoom out
  * - `'layout'` — Auto layout
@@ -464,7 +463,7 @@ export interface PaletteConfig {
  * - `'undo'` — Undo last action
  * - `'redo'` — Redo last undone action
  */
-export type ToolbarItem = 'hand' | 'line' | 'zoom-in' | 'zoom-out' | 'layout' | 'fit' | 'undo' | 'redo';
+export type ToolbarItem = 'hand' | 'zoom-in' | 'zoom-out' | 'layout' | 'fit' | 'undo' | 'redo';
 
 /**
  * Top toolbar configuration.

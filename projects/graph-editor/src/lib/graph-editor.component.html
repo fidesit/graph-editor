@@ -15,18 +15,7 @@
             <span class="icon">✋</span>
           </button>
         }
-        @if (showToolbarItem('line')) {
-          <button
-            class="toolbar-btn"
-            [class.active]="activeTool() === 'line'"
-            title="Line tool (draw connections)"
-            (click)="switchTool('line')"
-          >
-            <span class="icon">∕</span>
-          </button>
-        }
-
-        @if (showToolbarDivider(['hand', 'line'], ['zoom-in', 'zoom-out'])) {
+        @if (showToolbarDivider(['hand'], ['zoom-in', 'zoom-out'])) {
           <div class="toolbar-divider"></div>
         }
 
@@ -56,7 +45,7 @@
           </button>
         }
 
-        @if (showToolbarDivider(['hand', 'line', 'zoom-in', 'zoom-out'], ['layout', 'fit'])) {
+        @if (showToolbarDivider(['hand', 'zoom-in', 'zoom-out'], ['layout', 'fit'])) {
           <div class="toolbar-divider"></div>
         }
 
@@ -87,7 +76,7 @@
           </button>
         }
 
-        @if (showToolbarDivider(['hand', 'line', 'zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
+        @if (showToolbarDivider(['hand', 'zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
           <div class="toolbar-divider"></div>
         }
 
@@ -167,7 +156,7 @@
 
     <svg
       #canvasSvg
-      [class.tool-line]="activeTool() === 'line'"
+
       [attr.width]="'100%'"
       [attr.height]="'100%'"
       (mousedown)="onCanvasMouseDown($event)"
@@ -318,6 +307,7 @@
             (mousedown)="onNodeMouseDown($event, node)"
             (click)="onNodeClick($event, node)"
             (dblclick)="nodeDoubleClick.emit(node)"
+
           >
             <!-- Priority: nodeHtmlTemplate > nodeSvgTemplate > component > default -->
             @if (nodeHtmlTemplate()?.templateRef) {
@@ -371,7 +361,7 @@
 
         <!-- Layer 3: Attachment points (on top of nodes) -->
         @for (node of internalGraph().nodes; track node.id) {
-          @if (showAttachmentPoints() === node.id) {
+          @if (showAttachmentPoints() === node.id || (activeTool() === 'hand' && !readonly && selection().nodes.includes(node.id))) {
             <g [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'">
               @for (port of getNodePorts(node); track port.position) {
                 <circle
@@ -383,7 +373,9 @@
                   [attr.stroke-width]="resolvedTheme.port.strokeWidth"
                   class="attachment-point"
                   [class.hovered]="hoveredPort?.nodeId === node.id && hoveredPort?.port === port.position"
-                  (mousedown)="$event.stopPropagation()"
+                  (mouseenter)="hoveredPort = { nodeId: node.id, port: port.position }"
+                  (mouseleave)="hoveredPort = null"
+                  (mousedown)="onAttachmentPointMouseDown($event, node, port.position)"
                   (click)="onAttachmentPointClick($event, node, port.position)"
                 />
               }

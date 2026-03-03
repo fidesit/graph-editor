@@ -20,7 +20,7 @@ This directory contains **all library source**. Three files, no sub-components.
 - `nodes`, `edges` — derived from `@Input() graph`
 - `selectedNodeId`, `selectedEdgeId` — selection
 - `transform` — `{ x, y, scale }` for pan/zoom
-- `activeTool` — `'hand' | 'line'`
+- `activeTool` — `'hand'`
 - `validationResult` — current validation state
 
 **Rendering**: pure SVG. Nodes are `<g>` groups, edges are `<path>` elements. No Canvas API.

@@ -86,7 +86,7 @@ describe('GraphEditorComponent', () => {
     const fixture = TestBed.createComponent(GraphEditorComponent);
     fixture.componentRef.setInput('config', minimalConfig);
     fixture.detectChanges();
-    expect(() => fixture.componentInstance.switchTool('line')).not.toThrow();
     expect(() => fixture.componentInstance.switchTool('hand')).not.toThrow();
+    expect(fixture.componentInstance.activeTool()).toBe('hand');
   });
 });
