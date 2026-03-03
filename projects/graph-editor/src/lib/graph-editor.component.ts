@@ -74,6 +74,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   @Output() contextMenu = new EventEmitter<ContextMenuEvent>();
 
   private readonly canvasSvgRef = viewChild<ElementRef>('canvasSvg');
+  private readonly edgeLabelInputRef = viewChild<ElementRef>('edgeLabelInput');
   private readonly historyService = inject(GraphHistoryService);
 
   // Internal state
@@ -113,6 +114,29 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private isBoxSelecting = false;
   private boxSelectStart: Position = { x: 0, y: 0 };
   selectionBox = signal<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  // Inline edge label editing state
+  editingEdgeLabel = signal<{ edgeId: string; value: string } | null>(null);
+
+  // Edge double-click detection (timer-based fallback for native dblclick)
+  private lastEdgeClickTime = 0;
+  private lastEdgeClickId: string | null = null;
+
+  editingEdgeLabelScreenPos = computed(() => {
+    const editing = this.editingEdgeLabel();
+    if (!editing) return null;
+
+    const edge = this.internalGraph().edges.find(e => e.id === editing.edgeId);
+    if (!edge) return null;
+
+    const pos = this.getEdgeLabelPosition(edge);
+    if (!pos) return null;
+
+    return {
+      x: pos.x * this.scale() + this.panX(),
+      y: pos.y * this.scale() + this.panY(),
+    };
+  });
 
   // Resize state (hand tool)
   private resizingNode: GraphNode | null = null;
@@ -333,8 +357,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onKeyDown(event: KeyboardEvent): void {
     if (this.readonly || this.config.interaction?.readonly) return;
 
-    // Escape: cancel line drawing, clear selection
+    // Escape: cancel edge label editing, cancel line drawing, clear selection
     if (event.key === 'Escape') {
+      if (this.editingEdgeLabel()) {
+        this.cancelEdgeLabelEdit();
+        event.preventDefault();
+        return;
+      }
       this.pendingEdge = null;
       this.previewLine.set(null);
       this.selection.set({ nodes: [], edges: [] });
@@ -489,6 +518,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onEdgeClick(event: MouseEvent, edge: GraphEdge): void {
     if (this.activeTool() !== 'hand') return;
     event.stopPropagation();
+
+    // Timer-based double-click detection: after the first click selects the edge
+    // and Angular re-renders (adding endpoint circles, direction selector), the
+    // second click may hit a different element, preventing the native dblclick
+    // from firing.  Detect double-click ourselves as a reliable fallback.
+    const now = Date.now();
+    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < 400) {
+      // Treat as double-click
+      this.lastEdgeClickId = null;
+      this.lastEdgeClickTime = 0;
+      this.handleEdgeDoubleClick(event, edge);
+      return;
+    }
+    this.lastEdgeClickId = edge.id;
+    this.lastEdgeClickTime = now;
+
     if (event.ctrlKey || event.metaKey) {
       // Ctrl/Cmd+Click: toggle edge in selection
       this.toggleEdgeSelection(edge.id);
@@ -502,8 +547,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onEdgeDoubleClick(event: MouseEvent, edge: GraphEdge): void {
     if (this.activeTool() !== 'hand') return;
     event.stopPropagation();
+    event.preventDefault(); // Suppress native text selection & Edge mini menu
+    // Clear the timer so the click handler doesn't fire a duplicate
+    this.lastEdgeClickId = null;
+    this.lastEdgeClickTime = 0;
+    this.handleEdgeDoubleClick(event, edge);
+  }
+
+  /** Shared handler for edge double-click (called by native dblclick or timer fallback). */
+  private handleEdgeDoubleClick(event: MouseEvent, edge: GraphEdge): void {
+    event.preventDefault();
     this.selectEdge(edge.id);
     this.edgeDoubleClick.emit(edge);
+    // Start inline label editing (works for edges with or without an existing label)
+    if (!this.readonly && !this.config.interaction?.readonly) {
+      this.startEdgeLabelEdit(edge);
+    }
   }
 
   clearSelection(): void {
@@ -676,6 +735,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onCanvasMouseDown(event: MouseEvent): void {
     if (this.readonly) return;
 
+    // Prevent native text selection on all canvas mousedowns (suppresses Edge mini menu)
+    event.preventDefault();
+
     // Cancel pending edge on empty space click
     if (this.pendingEdge) {
       this.pendingEdge = null;
@@ -708,7 +770,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       }
       this.lastMousePos = { x: event.clientX, y: event.clientY };
       this.clearSelection();
-      event.preventDefault();
     }
   }
 
@@ -1254,6 +1315,90 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   /** Check if redo is available */
   canRedo(): boolean {
     return this.historyService.canRedo();
+  }
+
+  // --- Inline edge label editing ---
+
+  /** Start inline editing of an edge label. Public API — consumers can call this. */
+  startEdgeLabelEdit(edge: GraphEdge): void {
+    if (this.readonly || this.config.interaction?.readonly) return;
+    this.editingEdgeLabel.set({
+      edgeId: edge.id,
+      value: this.getEdgeLabel(edge) || '',
+    });
+    // Auto-focus the input after Angular renders it
+    setTimeout(() => {
+      const input = this.edgeLabelInputRef()?.nativeElement;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    });
+  }
+
+  /** Commit the current inline edge label edit. */
+  commitEdgeLabelEdit(newValue: string): void {
+    const editing = this.editingEdgeLabel();
+    if (!editing) return;
+
+    const trimmed = newValue.trim();
+    const graph = this.internalGraph();
+    const edgeIndex = graph.edges.findIndex(e => e.id === editing.edgeId);
+    if (edgeIndex === -1) {
+      this.editingEdgeLabel.set(null);
+      return;
+    }
+
+    const updatedEdges = [...graph.edges];
+    updatedEdges[edgeIndex] = {
+      ...updatedEdges[edgeIndex],
+      label: trimmed || undefined,
+    };
+
+    this.internalGraph.set({ ...graph, edges: updatedEdges });
+    this.emitGraphChange();
+    this.edgeUpdated.emit(updatedEdges[edgeIndex]);
+    this.editingEdgeLabel.set(null);
+  }
+
+  /** Cancel the current inline edge label edit without saving. */
+  cancelEdgeLabelEdit(): void {
+    this.editingEdgeLabel.set(null);
+  }
+
+  /** Handle click on an edge label (selects the edge). */
+  onEdgeLabelClick(event: MouseEvent, edge: GraphEdge): void {
+    event.stopPropagation();
+
+    // Timer-based double-click detection (same rationale as onEdgeClick)
+    const now = Date.now();
+    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < 400) {
+      this.lastEdgeClickId = null;
+      this.lastEdgeClickTime = 0;
+      event.preventDefault();
+      this.selectEdge(edge.id);
+      this.startEdgeLabelEdit(edge);
+      return;
+    }
+    this.lastEdgeClickId = edge.id;
+    this.lastEdgeClickTime = now;
+
+    if (event.ctrlKey || event.metaKey) {
+      this.toggleEdgeSelection(edge.id);
+    } else {
+      this.selectEdge(edge.id);
+    }
+    this.edgeClick.emit(edge);
+  }
+
+  /** Handle double-click on an edge label (starts inline editing). */
+  onEdgeLabelDoubleClick(event: MouseEvent, edge: GraphEdge): void {
+    event.stopPropagation();
+    event.preventDefault(); // Suppress native text selection & Edge mini menu
+    this.lastEdgeClickId = null;
+    this.lastEdgeClickTime = 0;
+    this.selectEdge(edge.id);
+    this.startEdgeLabelEdit(edge);
   }
 
   /** Clear history and reset to current state */
@@ -1935,6 +2080,142 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         width: size.width,
         height: size.height,
       },
+    };
+  }
+
+  /**
+   * Get the display label for an edge.
+   * Priority: edge.label > edge.metadata?.label > null
+   */
+  getEdgeLabel(edge: GraphEdge): string | null {
+    return edge.label || edge.metadata?.label || null;
+  }
+
+  /**
+   * Get the position for an edge label along the edge path.
+   * Evaluates the position at `t` (0=source, 1=target) on the actual path geometry.
+   */
+  getEdgeLabelPosition(edge: GraphEdge): Position | null {
+    const sourceNode = this.internalGraph().nodes.find(n => n.id === edge.source);
+    const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
+    if (!sourceNode || !targetNode) return null;
+
+    const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+    const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+
+    const s = this.getPortWorldPosition(sourceNode, sourcePort);
+    const t = this.getPortWorldPosition(targetNode, targetPort);
+    const pathT = this.resolvedTheme.edge.label.position;
+    const offsetY = this.resolvedTheme.edge.label.offsetY;
+    const pathType = this.resolvedTheme.edge.pathType;
+
+    let pos: Position;
+
+    if (pathType === 'bezier') {
+      // Evaluate cubic bezier at t
+      const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
+      const sc = this.getPortControlOffset(sourcePort, offset);
+      const tc = this.getPortControlOffset(targetPort, offset);
+      const crossBias = 0.15;
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const c1x = s.x + sc.dx + (sc.dx !== 0 ? 0 : dx * crossBias);
+      const c1y = s.y + sc.dy + (sc.dy !== 0 ? 0 : dy * crossBias);
+      const c2x = t.x + tc.dx + (tc.dx !== 0 ? 0 : dx * -crossBias);
+      const c2y = t.y + tc.dy + (tc.dy !== 0 ? 0 : dy * -crossBias);
+
+      // De Casteljau evaluation
+      const u = 1 - pathT;
+      pos = {
+        x: u * u * u * s.x + 3 * u * u * pathT * c1x + 3 * u * pathT * pathT * c2x + pathT * pathT * pathT * t.x,
+        y: u * u * u * s.y + 3 * u * u * pathT * c1y + 3 * u * pathT * pathT * c2y + pathT * pathT * pathT * t.y,
+      };
+    } else if (pathType === 'step') {
+      // Evaluate piecewise linear step path at t
+      const midX = (s.x + t.x) / 2;
+      const midY = (s.y + t.y) / 2;
+      const isSourceVertical = sourcePort === 'top' || sourcePort === 'bottom';
+      const isTargetVertical = targetPort === 'top' || targetPort === 'bottom';
+
+      let segments: Position[];
+      if (isSourceVertical && isTargetVertical) {
+        segments = [s, { x: s.x, y: midY }, { x: t.x, y: midY }, t];
+      } else if (!isSourceVertical && !isTargetVertical) {
+        segments = [s, { x: midX, y: s.y }, { x: midX, y: t.y }, t];
+      } else if (isSourceVertical) {
+        segments = [s, { x: s.x, y: t.y }, t];
+      } else {
+        segments = [s, { x: t.x, y: s.y }, t];
+      }
+
+      pos = this.evaluatePolylineAt(segments, pathT);
+    } else {
+      // Straight line — simple lerp
+      pos = {
+        x: s.x + (t.x - s.x) * pathT,
+        y: s.y + (t.y - s.y) * pathT,
+      };
+    }
+
+    return { x: pos.x, y: pos.y + offsetY };
+  }
+
+  /**
+   * Evaluate a position along a polyline at parameter t (0..1).
+   */
+  private evaluatePolylineAt(points: Position[], t: number): Position {
+    if (points.length < 2) return points[0] || { x: 0, y: 0 };
+
+    // Compute total length and per-segment lengths
+    let totalLength = 0;
+    const segLengths: number[] = [];
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      segLengths.push(len);
+      totalLength += len;
+    }
+
+    if (totalLength === 0) return points[0];
+
+    const targetDist = t * totalLength;
+    let accumulated = 0;
+    for (let i = 0; i < segLengths.length; i++) {
+      if (accumulated + segLengths[i] >= targetDist) {
+        const segT = segLengths[i] === 0 ? 0 : (targetDist - accumulated) / segLengths[i];
+        return {
+          x: points[i].x + (points[i + 1].x - points[i].x) * segT,
+          y: points[i].y + (points[i + 1].y - points[i].y) * segT,
+        };
+      }
+      accumulated += segLengths[i];
+    }
+
+    return points[points.length - 1];
+  }
+
+  /**
+   * Get the background rect dimensions for an edge label.
+   * Returns x, y, width, height centered around the label position.
+   */
+  getEdgeLabelRect(edge: GraphEdge): { x: number; y: number; width: number; height: number } | null {
+    const label = this.getEdgeLabel(edge);
+    const pos = this.getEdgeLabelPosition(edge);
+    if (!label || !pos) return null;
+
+    const theme = this.resolvedTheme.edge.label;
+    const charWidth = theme.fontSize * 0.62;
+    const textWidth = label.length * charWidth;
+    const textHeight = theme.fontSize;
+    const width = textWidth + theme.paddingX * 2;
+    const height = textHeight + theme.paddingY * 2;
+
+    return {
+      x: pos.x - width / 2,
+      y: pos.y - height / 2,
+      width,
+      height,
     };
   }
 
