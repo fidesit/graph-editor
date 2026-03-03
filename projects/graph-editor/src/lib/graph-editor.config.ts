@@ -191,7 +191,7 @@ export interface ValidationError {
  * Layout configuration.
  */
 export interface LayoutConfig {
-  algorithm: 'dagre' | 'manual';       // Layout algorithm
+  algorithm: 'dagre' | 'force' | 'tree' | 'manual'; // Layout algorithm
   options?: LayoutOptions;
 }
 
@@ -201,6 +201,13 @@ export interface LayoutOptions {
   ranksep?: number;                    // Separation between ranks (default: 80)
   nodesep?: number;                    // Separation between nodes (default: 40)
   edgesep?: number;                    // Separation between edges (default: 10)
+  // Force-directed options
+  iterations?: number;                 // Simulation iterations (default: 300)
+  repulsionStrength?: number;          // Node repulsion force (default: 500)
+  attractionStrength?: number;         // Edge attraction force (default: 0.01)
+  // Tree options
+  levelSeparation?: number;            // Vertical spacing between levels (default: 120)
+  siblingSpacing?: number;             // Horizontal spacing between siblings (default: 80)
 }
 
 /**
@@ -445,6 +452,20 @@ export interface ToolbarTheme {
   buttonActiveTextColor?: string;
   /** Divider line color between button groups (default: '#e5e7eb') */
   dividerColor?: string;
+  /** Dropdown panel background (default: toolbar background) */
+  dropdownBackground?: string;
+  /** Dropdown panel border color (default: button border color) */
+  dropdownBorderColor?: string;
+  /** Dropdown panel border radius in px (default: toolbar border radius) */
+  dropdownBorderRadius?: number;
+  /** Dropdown panel shadow (default: toolbar shadow) */
+  dropdownShadow?: string;
+  /** Dropdown item text color (default: button text color) */
+  dropdownItemColor?: string;
+  /** Dropdown item hover background (default: button hover background) */
+  dropdownItemHoverBackground?: string;
+  /** Dropdown active/selected item color (default: button hover accent) */
+  dropdownItemActiveColor?: string;
 }
 
 /**

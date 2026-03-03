@@ -126,6 +126,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private clipboard: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
   private pasteCount = 0; // Track successive pastes for cascading offset
 
+  // Layout algorithm dropdown
+  layoutDropdownOpen = signal(false);
+  selectedLayoutAlgorithm = signal<'dagre-tb' | 'dagre-lr' | 'force' | 'tree'>('dagre-tb');
+
   // Snap guides (alignment lines shown during node drag)
   snapGuides = signal<GuideLine[]>([]);
 
@@ -364,8 +368,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   onKeyDown(event: KeyboardEvent): void {
     if (this.readonly || this.config.interaction?.readonly) return;
 
-    // Escape: cancel edge label editing, cancel line drawing, clear selection
+    // Escape: close layout dropdown, cancel edge label editing, cancel line drawing, clear selection
     if (event.key === 'Escape') {
+      if (this.layoutDropdownOpen()) {
+        this.layoutDropdownOpen.set(false);
+        event.preventDefault();
+        return;
+      }
       if (this.editingEdgeLabel()) {
         this.cancelEdgeLabelEdit();
         event.preventDefault();
@@ -602,20 +611,45 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return result;
   }
 
-  // Layout
-  async applyLayout(direction: 'TB' | 'LR' = 'TB'): Promise<void> {
+  // Layout — dispatcher supporting multiple algorithms
+  async applyLayout(algorithmOverride?: string): Promise<void> {
+    // Map legacy direction parameters to algorithm keys
+    if (algorithmOverride === 'TB') algorithmOverride = 'dagre-tb';
+    if (algorithmOverride === 'LR') algorithmOverride = 'dagre-lr';
+
+    const algo = algorithmOverride ?? this.selectedLayoutAlgorithm();
+    this.layoutDropdownOpen.set(false);
+
     const graph = this.internalGraph();
     if (graph.nodes.length === 0) return;
 
-    // Dynamic import to avoid compile-time module resolution issues
+    let updatedNodes: GraphNode[];
+    switch (algo) {
+      case 'dagre-tb': updatedNodes = await this.layoutDagre(graph, 'TB'); break;
+      case 'dagre-lr': updatedNodes = await this.layoutDagre(graph, 'LR'); break;
+      case 'force':    updatedNodes = this.layoutForce(graph); break;
+      case 'tree':     updatedNodes = this.layoutTree(graph); break;
+      default: return;
+    }
+
+    if (algorithmOverride) {
+      this.selectedLayoutAlgorithm.set(algo as 'dagre-tb' | 'dagre-lr' | 'force' | 'tree');
+    }
+
+    this.applyLayoutPositions(graph, updatedNodes);
+  }
+
+  /** Dagre hierarchical layout */
+  private async layoutDagre(graph: Graph, direction: 'TB' | 'LR'): Promise<GraphNode[]> {
     const dagreModule = await import('dagre');
     const dagre = dagreModule.default ?? dagreModule;
+    const opts = this.config.layout?.options;
 
     const g = new dagre.graphlib.Graph();
     g.setGraph({
       rankdir: direction,
-      nodesep: 60,
-      ranksep: 80,
+      nodesep: opts?.nodesep ?? 60,
+      ranksep: opts?.ranksep ?? 80,
       marginx: 40,
       marginy: 40,
     });
@@ -625,14 +659,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const size = this.getNodeSize(node);
       g.setNode(node.id, { width: size.width, height: size.height });
     }
-
     for (const edge of graph.edges) {
       g.setEdge(edge.source, edge.target);
     }
 
     dagre.layout(g);
 
-    const updatedNodes = graph.nodes.map(node => {
+    return graph.nodes.map(node => {
       const dagreNode = g.node(node.id);
       if (!dagreNode) return node;
       const size = this.getNodeSize(node);
@@ -644,8 +677,204 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         },
       };
     });
+  }
 
-    // Recalculate edge ports based on new node positions
+  /** Force-directed layout (pure JS, no external deps) */
+  private layoutForce(graph: Graph): GraphNode[] {
+    const opts = this.config.layout?.options;
+    const totalIterations = opts?.iterations ?? 300;
+    const repulsion = opts?.repulsionStrength ?? 500;
+    const attraction = opts?.attractionStrength ?? 0.01;
+
+    // Initialize positions and sizes
+    const positions = new Map<string, { x: number; y: number }>();
+    const sizes = new Map<string, { width: number; height: number }>();
+    for (const node of graph.nodes) {
+      positions.set(node.id, { x: node.position.x, y: node.position.y });
+      sizes.set(node.id, this.getNodeSize(node));
+    }
+
+    const nodeIds = graph.nodes.map(n => n.id);
+
+    for (let iter = 0; iter < totalIterations; iter++) {
+      const forces = new Map<string, { fx: number; fy: number }>();
+      for (const id of nodeIds) forces.set(id, { fx: 0, fy: 0 });
+
+      // Repulsive forces between all node pairs
+      for (let a = 0; a < nodeIds.length; a++) {
+        for (let b = a + 1; b < nodeIds.length; b++) {
+          const idA = nodeIds[a], idB = nodeIds[b];
+          const posA = positions.get(idA)!;
+          const posB = positions.get(idB)!;
+          const sA = sizes.get(idA)!;
+          const sB = sizes.get(idB)!;
+          const dx = posA.x - posB.x;
+          const dy = posA.y - posB.y;
+          const minDist = (sA.width + sB.width) / 2 + 20;
+          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), minDist * 0.1);
+          const force = repulsion / (dist * dist);
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          forces.get(idA)!.fx += fx;
+          forces.get(idA)!.fy += fy;
+          forces.get(idB)!.fx -= fx;
+          forces.get(idB)!.fy -= fy;
+        }
+      }
+
+      // Attractive forces along edges
+      for (const edge of graph.edges) {
+        const posS = positions.get(edge.source);
+        const posT = positions.get(edge.target);
+        if (!posS || !posT) continue;
+        const dx = posS.x - posT.x;
+        const dy = posS.y - posT.y;
+        const fx = dx * attraction;
+        const fy = dy * attraction;
+        const fS = forces.get(edge.source);
+        const fT = forces.get(edge.target);
+        if (fS) { fS.fx -= fx; fS.fy -= fy; }
+        if (fT) { fT.fx += fx; fT.fy += fy; }
+      }
+
+      // Apply forces with cooling
+      const cooling = 1 - iter / totalIterations;
+      for (const id of nodeIds) {
+        const pos = positions.get(id)!;
+        const f = forces.get(id)!;
+        pos.x += f.fx * cooling;
+        pos.y += f.fy * cooling;
+      }
+    }
+
+    return graph.nodes.map(node => ({
+      ...node,
+      position: { ...positions.get(node.id)! },
+    }));
+  }
+
+  /** Tree layout (BFS-based, handles forests and cycles) */
+  private layoutTree(graph: Graph): GraphNode[] {
+    const opts = this.config.layout?.options;
+    const levelSep = opts?.levelSeparation ?? 120;
+    const siblingSp = opts?.siblingSpacing ?? 80;
+
+    // Build adjacency: parent → children
+    const incomingCount = new Map<string, number>();
+    const children = new Map<string, string[]>();
+    for (const node of graph.nodes) {
+      incomingCount.set(node.id, 0);
+      children.set(node.id, []);
+    }
+    for (const edge of graph.edges) {
+      incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1);
+      const ch = children.get(edge.source);
+      if (ch) ch.push(edge.target);
+    }
+
+    // Find roots (no incoming edges)
+    let roots = graph.nodes.filter(n => (incomingCount.get(n.id) ?? 0) === 0).map(n => n.id);
+    if (roots.length === 0 && graph.nodes.length > 0) {
+      roots = [graph.nodes[0].id]; // Cyclic: pick first node
+    }
+
+    // BFS to assign levels, handling multiple trees (forest)
+    const levels = new Map<string, number>();
+    const visited = new Set<string>();
+    const levelNodes = new Map<number, string[]>(); // level → node ids
+
+    let forestOffset = 0; // horizontal offset for each tree in a forest
+    const treeXOffset = new Map<string, number>(); // nodeId → x offset from tree base
+    const nodeTreeBase = new Map<string, number>(); // nodeId → forest offset
+
+    for (const root of roots) {
+      if (visited.has(root)) continue;
+
+      // BFS for this tree
+      const queue: string[] = [root];
+      visited.add(root);
+      levels.set(root, 0);
+      const treeNodes: string[] = [];
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        treeNodes.push(current);
+        const level = levels.get(current)!;
+        if (!levelNodes.has(level)) levelNodes.set(level, []);
+        levelNodes.get(level)!.push(current);
+
+        for (const child of children.get(current) ?? []) {
+          if (!visited.has(child)) {
+            visited.add(child);
+            levels.set(child, level + 1);
+            queue.push(child);
+          }
+        }
+      }
+
+      // Position nodes in this tree: center children under parent
+      // First pass: assign x positions per level within this tree
+      const treeLevelNodes = new Map<number, string[]>();
+      for (const id of treeNodes) {
+        const lvl = levels.get(id)!;
+        if (!treeLevelNodes.has(lvl)) treeLevelNodes.set(lvl, []);
+        treeLevelNodes.get(lvl)!.push(id);
+      }
+
+      // Simple positioning: nodes at each level get evenly spaced
+      let maxWidth = 0;
+      for (const [, ids] of treeLevelNodes) {
+        let totalWidth = 0;
+        for (const id of ids) {
+          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
+          totalWidth += size.width + siblingSp;
+        }
+        totalWidth -= siblingSp; // remove trailing spacing
+        maxWidth = Math.max(maxWidth, totalWidth);
+      }
+
+      for (const [, ids] of treeLevelNodes) {
+        let totalWidth = 0;
+        for (const id of ids) {
+          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
+          totalWidth += size.width + siblingSp;
+        }
+        totalWidth -= siblingSp;
+
+        let x = (maxWidth - totalWidth) / 2; // center this level
+        for (const id of ids) {
+          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
+          treeXOffset.set(id, x);
+          nodeTreeBase.set(id, forestOffset);
+          x += size.width + siblingSp;
+        }
+      }
+
+      forestOffset += maxWidth + siblingSp * 2;
+    }
+
+    // Handle disconnected nodes (not reached by any root)
+    for (const node of graph.nodes) {
+      if (!visited.has(node.id)) {
+        levels.set(node.id, 0);
+        treeXOffset.set(node.id, 0);
+        nodeTreeBase.set(node.id, forestOffset);
+        const size = this.getNodeSize(node);
+        forestOffset += size.width + siblingSp;
+      }
+    }
+
+    return graph.nodes.map(node => ({
+      ...node,
+      position: {
+        x: (nodeTreeBase.get(node.id) ?? 0) + (treeXOffset.get(node.id) ?? 0),
+        y: (levels.get(node.id) ?? 0) * levelSep,
+      },
+    }));
+  }
+
+  /** Shared post-layout: recalculate edge ports, update graph, emit change, fit to screen */
+  private applyLayoutPositions(graph: Graph, updatedNodes: GraphNode[]): void {
     const updatedEdges = graph.edges.map(edge => {
       const sourceNode = updatedNodes.find(n => n.id === edge.source);
       const targetNode = updatedNodes.find(n => n.id === edge.target);
@@ -657,7 +886,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
     this.emitGraphChange();
-
     setTimeout(() => this.fitToScreen());
   }
 
@@ -744,6 +972,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Event handlers
   onCanvasMouseDown(event: MouseEvent): void {
     if (this.readonly) return;
+
+    // Close layout dropdown on any canvas interaction
+    this.layoutDropdownOpen.set(false);
 
     // Prevent native text selection on all canvas mousedowns (suppresses Edge mini menu)
     event.preventDefault();

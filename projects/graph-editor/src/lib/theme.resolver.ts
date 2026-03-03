@@ -84,6 +84,13 @@ export interface ResolvedTheme {
     buttonActiveBackground: string;
     buttonActiveTextColor: string;
     dividerColor: string;
+    dropdownBackground: string;
+    dropdownBorderColor: string;
+    dropdownBorderRadius: number;
+    dropdownShadow: string;
+    dropdownItemColor: string;
+    dropdownItemHoverBackground: string;
+    dropdownItemActiveColor: string;
   };
 }
 
@@ -177,6 +184,13 @@ function resolveToolbar(toolbar: ToolbarTheme | undefined, selectionColor: strin
     buttonActiveBackground: toolbar?.buttonActiveBackground ?? selectionColor,
     buttonActiveTextColor: toolbar?.buttonActiveTextColor ?? '#ffffff',
     dividerColor: toolbar?.dividerColor ?? '#e5e7eb',
+    dropdownBackground: toolbar?.dropdownBackground ?? toolbar?.background ?? 'rgba(255, 255, 255, 0.95)',
+    dropdownBorderColor: toolbar?.dropdownBorderColor ?? toolbar?.buttonBorderColor ?? '#e5e7eb',
+    dropdownBorderRadius: toolbar?.dropdownBorderRadius ?? toolbar?.borderRadius ?? 8,
+    dropdownShadow: toolbar?.dropdownShadow ?? toolbar?.shadow ?? '0 2px 8px rgba(0, 0, 0, 0.15)',
+    dropdownItemColor: toolbar?.dropdownItemColor ?? toolbar?.buttonTextColor ?? '#4b5563',
+    dropdownItemHoverBackground: toolbar?.dropdownItemHoverBackground ?? toolbar?.buttonHoverBackground ?? '#f9fafb',
+    dropdownItemActiveColor: toolbar?.dropdownItemActiveColor ?? toolbar?.buttonHoverAccent ?? selectionColor,
   };
 }
 
@@ -239,6 +253,15 @@ export function applyThemeCssProperties(host: HTMLElement, t: ResolvedTheme, use
   style.setProperty('--ge-toolbar-btn-active-bg', t.toolbar.buttonActiveBackground);
   style.setProperty('--ge-toolbar-btn-active-color', t.toolbar.buttonActiveTextColor);
   style.setProperty('--ge-toolbar-divider', t.toolbar.dividerColor);
+
+  // Dropdown
+  style.setProperty('--ge-dropdown-bg', t.toolbar.dropdownBackground);
+  style.setProperty('--ge-dropdown-border', t.toolbar.dropdownBorderColor);
+  style.setProperty('--ge-dropdown-radius', `${t.toolbar.dropdownBorderRadius}px`);
+  style.setProperty('--ge-dropdown-shadow', t.toolbar.dropdownShadow);
+  style.setProperty('--ge-dropdown-item-color', t.toolbar.dropdownItemColor);
+  style.setProperty('--ge-dropdown-item-hover-bg', t.toolbar.dropdownItemHoverBackground);
+  style.setProperty('--ge-dropdown-item-active-color', t.toolbar.dropdownItemActiveColor);
 
   // Backward compat: --graph-editor-canvas-bg
   style.setProperty('--graph-editor-canvas-bg', t.canvas.background);

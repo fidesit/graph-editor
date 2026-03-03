@@ -36,18 +36,49 @@
 
         <!-- Actions -->
         @if (showToolbarItem('layout')) {
-          <button
-            class="toolbar-btn"
-            title="Auto layout"
-            (click)="applyLayout()"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1"/>
-              <rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/>
-              <rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-          </button>
+          <div class="layout-btn-group">
+            <button
+              class="toolbar-btn layout-main-btn"
+              title="Auto layout"
+              (click)="applyLayout()"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+              </svg>
+            </button>
+            <button
+              class="toolbar-btn layout-chevron"
+              title="Layout options"
+              (click)="layoutDropdownOpen.set(!layoutDropdownOpen()); $event.stopPropagation()"
+            >
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3.5L5 6.5L8 3.5"/>
+              </svg>
+            </button>
+            @if (layoutDropdownOpen()) {
+              <div class="layout-dropdown" (click)="$event.stopPropagation()">
+                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'dagre-tb'" (click)="applyLayout('dagre-tb')">
+                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'dagre-tb' ? '✓' : '' }}</span>
+                  Hierarchical ↓
+                </button>
+                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'dagre-lr'" (click)="applyLayout('dagre-lr')">
+                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'dagre-lr' ? '✓' : '' }}</span>
+                  Hierarchical →
+                </button>
+                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'force'" (click)="applyLayout('force')">
+                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'force' ? '✓' : '' }}</span>
+                  Force
+                </button>
+                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'tree'" (click)="applyLayout('tree')">
+                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'tree' ? '✓' : '' }}</span>
+                  Tree
+                </button>
+              </div>
+            }
+          </div>
         }
         @if (showToolbarItem('fit')) {
           <button

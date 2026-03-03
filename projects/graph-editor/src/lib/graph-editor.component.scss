@@ -80,6 +80,77 @@
   margin: 4px 2px;
 }
 
+// Layout split button + dropdown
+.layout-btn-group {
+  display: flex;
+  position: relative;
+}
+
+.layout-btn-group .layout-main-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+
+.layout-btn-group .layout-chevron {
+  width: 20px;
+  min-width: 20px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 1px solid var(--ge-toolbar-divider, #e5e7eb);
+  padding: 0;
+}
+
+.layout-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  min-width: 160px;
+  background: var(--ge-dropdown-bg, var(--ge-toolbar-bg, rgba(255, 255, 255, 0.95)));
+  border: 1px solid var(--ge-dropdown-border, var(--ge-toolbar-btn-border, #e5e7eb));
+  border-radius: var(--ge-dropdown-radius, var(--ge-toolbar-radius, 8px));
+  box-shadow: var(--ge-dropdown-shadow, var(--ge-toolbar-shadow, 0 2px 8px rgba(0, 0, 0, 0.15)));
+  backdrop-filter: blur(4px);
+  padding: var(--ge-dropdown-padding, 4px);
+  z-index: 20;
+}
+
+.layout-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: var(--ge-dropdown-item-padding, 6px 10px);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--ge-dropdown-item-radius, 4px);
+  font-size: var(--ge-dropdown-item-font-size, 13px);
+  color: var(--ge-dropdown-item-color, var(--ge-toolbar-btn-color, #4b5563));
+  white-space: nowrap;
+  font-family: var(--ge-font-family, inherit);
+  transition: background 0.12s, color 0.12s;
+}
+
+.layout-option:hover {
+  background: var(--ge-dropdown-item-hover-bg, var(--ge-toolbar-btn-hover-bg, #f3f4f6));
+  color: var(--ge-dropdown-item-hover-color, var(--ge-dropdown-item-color, var(--ge-toolbar-btn-color, #4b5563)));
+}
+
+.layout-option.active {
+  font-weight: 600;
+  color: var(--ge-dropdown-item-active-color, var(--ge-toolbar-btn-hover-accent, #3b82f6));
+}
+
+.layout-option-check {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ge-dropdown-check-color, var(--ge-toolbar-btn-hover-accent, #3b82f6));
+}
+
 // Left vertical palette container (supports multiple columns)
 .graph-palette-container {
   position: absolute;
