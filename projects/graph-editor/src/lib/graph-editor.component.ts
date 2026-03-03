@@ -2087,8 +2087,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (pathType === 'step') {
       const midX = (s.x + t.x) / 2;
       const midY = (s.y + t.y) / 2;
-      const isSourceVertical = sourcePort === 'top' || sourcePort === 'bottom';
-      const isTargetVertical = targetPort === 'top' || targetPort === 'bottom';
+      const sourceSide = this.getPortSide(sourcePort);
+      const targetSide = this.getPortSide(targetPort);
+      const isSourceVertical = sourceSide === 'top' || sourceSide === 'bottom';
+      const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
 
       if (isSourceVertical && isTargetVertical) {
         return `M ${s.x},${s.y} L ${s.x},${midY} L ${t.x},${midY} L ${t.x},${t.y}`;
@@ -2688,24 +2690,56 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     otherNode: GraphNode,
     endpoint: 'source' | 'target'
   ): string {
+    const nodeSize = this.getNodeSize(node);
     const otherSize = this.getNodeSize(otherNode);
+    const nodeCenter: Position = {
+      x: node.position.x + nodeSize.width / 2,
+      y: node.position.y + nodeSize.height / 2
+    };
     const otherCenter: Position = {
       x: otherNode.position.x + otherSize.width / 2,
       y: otherNode.position.y + otherSize.height / 2
     };
 
-    // Find the port closest to the other node's center
+    // Direction vector from this node's center to the other node's center
+    const dirX = otherCenter.x - nodeCenter.x;
+    const dirY = otherCenter.y - nodeCenter.y;
+    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+    const normDirX = dirX / dirLen;
+    const normDirY = dirY / dirLen;
+
+    // Unit outward normals for each side
+    const sideNormals: Record<string, { nx: number; ny: number }> = {
+      top: { nx: 0, ny: -1 },
+      bottom: { nx: 0, ny: 1 },
+      left: { nx: -1, ny: 0 },
+      right: { nx: 1, ny: 0 }
+    };
+
     const ports = this.getNodePorts(node);
     let bestPort = ports[0];
-    let bestDist = Infinity;
+    let bestScore = -Infinity;
     for (const p of ports) {
+      const side = this.getPortSide(p.position);
+      const normal = sideNormals[side];
+
+      // Dot product: how well does the port's outward direction match the
+      // direction toward the other node? Range [-1, 1].
+      const dot = normal.nx * normDirX + normal.ny * normDirY;
+
+      // Distance from port to other node's center (lower is better)
       const wx = node.position.x + p.x;
       const wy = node.position.y + p.y;
       const dx = otherCenter.x - wx;
       const dy = otherCenter.y - wy;
-      const dist = dx * dx + dy * dy;
-      if (dist < bestDist) {
-        bestDist = dist;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      // Score: directional alignment is primary, distance is tiebreaker.
+      // Dot is in [-1, 1]; dividing by dist ensures closer aligned ports win ties.
+      const score = dot + 1 / dist;
+
+      if (score > bestScore) {
+        bestScore = score;
         bestPort = p;
       }
     }
