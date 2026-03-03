@@ -122,6 +122,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private lastEdgeClickTime = 0;
   private lastEdgeClickId: string | null = null;
 
+  // Clipboard for copy/paste
+  private clipboard: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
+  private pasteCount = 0; // Track successive pastes for cascading offset
+
   editingEdgeLabelScreenPos = computed(() => {
     const editing = this.editingEdgeLabel();
     if (!editing) return null;
@@ -386,6 +390,27 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       if (this.redo()) {
         event.preventDefault();
       }
+      return;
+    }
+
+    // Copy: Ctrl+C (or Cmd+C on Mac)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'c') {
+      this.copySelection();
+      event.preventDefault();
+      return;
+    }
+
+    // Cut: Ctrl+X (or Cmd+X on Mac)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'x') {
+      this.cutSelection();
+      event.preventDefault();
+      return;
+    }
+
+    // Paste: Ctrl+V (or Cmd+V on Mac)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+      this.pasteClipboard();
+      event.preventDefault();
       return;
     }
 
@@ -1408,6 +1433,123 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   private generateId(): string {
     return `node_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateEdgeId(): string {
+    return `edge_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /** Copy selected nodes and their internal edges to the internal clipboard. */
+  private copySelection(): void {
+    const sel = this.selection();
+    if (sel.nodes.length === 0 && sel.edges.length === 0) return;
+
+    const graph = this.internalGraph();
+    const selectedNodeIds = new Set(sel.nodes);
+
+    // Deep-clone selected nodes
+    const copiedNodes = graph.nodes
+      .filter(n => selectedNodeIds.has(n.id))
+      .map(n => structuredClone(n));
+
+    // Include edges that are either explicitly selected OR connect two selected nodes
+    const copiedEdgeIds = new Set(sel.edges);
+    const copiedEdges = graph.edges
+      .filter(e =>
+        copiedEdgeIds.has(e.id) ||
+        (selectedNodeIds.has(e.source) && selectedNodeIds.has(e.target))
+      )
+      .map(e => structuredClone(e));
+
+    this.clipboard = { nodes: copiedNodes, edges: copiedEdges };
+    this.pasteCount = 0;
+  }
+
+  /** Cut selected nodes/edges: copy then delete. */
+  private cutSelection(): void {
+    this.copySelection();
+    if (!this.clipboard) return;
+
+    // Reuse delete logic from the Delete key handler
+    const sel = this.selection();
+    const graph = this.internalGraph();
+    const nodeIdsToRemove = new Set(sel.nodes);
+    const edgeIdsToRemove = new Set(sel.edges);
+
+    const removedNodes = graph.nodes.filter(n => nodeIdsToRemove.has(n.id));
+    const removedEdges = graph.edges.filter(e => edgeIdsToRemove.has(e.id));
+
+    const remainingNodes = graph.nodes.filter(n => !nodeIdsToRemove.has(n.id));
+    const remainingEdges = graph.edges.filter(e =>
+      !edgeIdsToRemove.has(e.id) &&
+      !nodeIdsToRemove.has(e.source) &&
+      !nodeIdsToRemove.has(e.target)
+    );
+
+    const additionalRemovedEdges = graph.edges.filter(e =>
+      !edgeIdsToRemove.has(e.id) &&
+      (nodeIdsToRemove.has(e.source) || nodeIdsToRemove.has(e.target))
+    );
+
+    this.internalGraph.set({ ...graph, nodes: remainingNodes, edges: remainingEdges });
+    this.emitGraphChange();
+
+    for (const edge of removedEdges) this.edgeRemoved.emit(edge);
+    for (const edge of additionalRemovedEdges) this.edgeRemoved.emit(edge);
+    for (const node of removedNodes) this.nodeRemoved.emit(node);
+
+    this.selection.set({ nodes: [], edges: [] });
+    this.selectionChange.emit(this.selection());
+  }
+
+  /** Paste clipboard contents with new IDs and offset positions. */
+  private pasteClipboard(): void {
+    if (!this.clipboard || (this.clipboard.nodes.length === 0 && this.clipboard.edges.length === 0)) return;
+
+    this.pasteCount++;
+    const offset = this.pasteCount * 30;
+
+    // Build old-ID → new-ID mapping for nodes
+    const nodeIdMap = new Map<string, string>();
+    const newNodes: GraphNode[] = this.clipboard.nodes.map(n => {
+      const newId = this.generateId();
+      nodeIdMap.set(n.id, newId);
+      return {
+        ...structuredClone(n),
+        id: newId,
+        position: { x: n.position.x + offset, y: n.position.y + offset }
+      };
+    });
+
+    // Remap edge source/target to new node IDs; only include edges where both endpoints exist
+    const newEdges: GraphEdge[] = this.clipboard.edges
+      .filter(e => nodeIdMap.has(e.source) && nodeIdMap.has(e.target))
+      .map(e => ({
+        ...structuredClone(e),
+        id: this.generateEdgeId(),
+        source: nodeIdMap.get(e.source)!,
+        target: nodeIdMap.get(e.target)!
+      }));
+
+    // Add to graph atomically
+    const graph = this.internalGraph();
+    this.internalGraph.set({
+      ...graph,
+      nodes: [...graph.nodes, ...newNodes],
+      edges: [...graph.edges, ...newEdges]
+    });
+    this.emitGraphChange();
+
+    // Emit events for each pasted item
+    for (const node of newNodes) this.nodeAdded.emit(node);
+    for (const edge of newEdges) this.edgeAdded.emit(edge);
+
+    // Select pasted items
+    this.selection.set({
+      nodes: newNodes.map(n => n.id),
+      edges: newEdges.map(e => e.id)
+    });
+    this.selectionChange.emit(this.selection());
   }
 
   private recalculateEdgePorts(nodeId: string): void {

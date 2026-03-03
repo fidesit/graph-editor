@@ -282,6 +282,9 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               <dl>
                 <div><dt><kbd>Ctrl+Z</kbd></dt><dd>Undo</dd></div>
                 <div><dt><kbd>Ctrl+Y</kbd></dt><dd>Redo</dd></div>
+                <div><dt><kbd>Ctrl+C</kbd></dt><dd>Copy</dd></div>
+                <div><dt><kbd>Ctrl+X</kbd></dt><dd>Cut</dd></div>
+                <div><dt><kbd>Ctrl+V</kbd></dt><dd>Paste</dd></div>
                 <div><dt><kbd>Esc</kbd></dt><dd>Cancel / Deselect</dd></div>
               </dl>
             </div>
