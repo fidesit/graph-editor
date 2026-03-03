@@ -424,8 +424,10 @@ export interface PaletteConfig {
  * - `'zoom-out'` — Zoom out
  * - `'layout'` — Auto layout
  * - `'fit'` — Fit to screen
+ * - `'undo'` — Undo last action
+ * - `'redo'` — Redo last undone action
  */
-export type ToolbarItem = 'hand' | 'line' | 'zoom-in' | 'zoom-out' | 'layout' | 'fit';
+export type ToolbarItem = 'hand' | 'line' | 'zoom-in' | 'zoom-out' | 'layout' | 'fit' | 'undo' | 'redo';
 
 /**
  * Top toolbar configuration.

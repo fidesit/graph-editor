@@ -54,6 +54,13 @@
   box-shadow: none;
 }
 
+.toolbar-btn.disabled,
+.toolbar-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .toolbar-btn.active {
   background: var(--ge-toolbar-btn-active-bg, #3b82f6);
   border-color: var(--ge-toolbar-btn-active-bg, #3b82f6);

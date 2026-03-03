@@ -86,6 +86,40 @@
             </svg>
           </button>
         }
+
+        @if (showToolbarDivider(['hand', 'line', 'zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
+          <div class="toolbar-divider"></div>
+        }
+
+        <!-- Undo / Redo -->
+        @if (showToolbarItem('undo')) {
+          <button
+            class="toolbar-btn"
+            [class.disabled]="!canUndo()"
+            [disabled]="!canUndo()"
+            title="Undo (Ctrl+Z)"
+            (click)="undo()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7v6h6"/>
+              <path d="M3 13c0 0 2.032-5.658 6.838-7.49C14.645 3.68 21 6.29 21 13a9 9 0 0 1-9 9 8.97 8.97 0 0 1-5.656-2"/>
+            </svg>
+          </button>
+        }
+        @if (showToolbarItem('redo')) {
+          <button
+            class="toolbar-btn"
+            [class.disabled]="!canRedo()"
+            [disabled]="!canRedo()"
+            title="Redo (Ctrl+Y)"
+            (click)="redo()"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 7v6h-6"/>
+              <path d="M21 13c0 0-2.032-5.658-6.838-7.49C9.355 3.68 3 6.29 3 13a9 9 0 0 0 9 9 8.97 8.97 0 0 0 5.656-2"/>
+            </svg>
+          </button>
+        }
       </div>
     }
 
