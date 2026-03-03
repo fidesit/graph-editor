@@ -60,6 +60,8 @@ export interface ResolvedTheme {
     radius: number;
     hoverFill: string;
     hoverRadius: number;
+    spacing: number;
+    margin: number;
   };
   selection: {
     color: string;
@@ -127,6 +129,8 @@ export function resolveTheme(theme?: ThemeConfig): ResolvedTheme {
       radius: theme?.port?.radius ?? 6,
       hoverFill: theme?.port?.hoverFill ?? '#2563eb',
       hoverRadius: theme?.port?.hoverRadius ?? 8,
+      spacing: theme?.port?.spacing ?? 75,
+      margin: theme?.port?.margin ?? 15,
     },
     selection: {
       color: selectionColor,

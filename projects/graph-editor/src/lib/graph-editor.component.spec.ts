@@ -82,11 +82,10 @@ describe('GraphEditorComponent', () => {
     expect(typeof result.valid).toBe('boolean');
   });
 
-  it('should switch tools', () => {
+  it('should have hand tool active by default', () => {
     const fixture = TestBed.createComponent(GraphEditorComponent);
     fixture.componentRef.setInput('config', minimalConfig);
     fixture.detectChanges();
-    expect(() => fixture.componentInstance.switchTool('hand')).not.toThrow();
     expect(fixture.componentInstance.activeTool()).toBe('hand');
   });
 });

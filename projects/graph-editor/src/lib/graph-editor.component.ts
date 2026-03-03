@@ -96,7 +96,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private lastMousePos: Position = { x: 0, y: 0 };
   private draggedEdge: { edge: GraphEdge; endpoint: 'source' | 'target' } | null = null;
   private hoveredNodeId: string | null = null;
-  hoveredPort: { nodeId: string; port: 'top' | 'bottom' | 'left' | 'right' } | null = null;
+  hoveredPort: { nodeId: string; port: string } | null = null;
 
   // Attachment points visibility
   showAttachmentPoints = signal<string | null>(null); // nodeId to show ports for
@@ -105,7 +105,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   activeTool = signal<'hand'>('hand');
 
   // Drag-to-connect state (mousedown on attachment point → drag → mouseup on target port)
-  private connectingFrom: { nodeId: string; port: 'top' | 'bottom' | 'left' | 'right' } | null = null;
+  private connectingFrom: { nodeId: string; port: string } | null = null;
 
   // Preview line for line tool (rubber-band from source to cursor)
   previewLine = signal<{ source: Position; target: Position } | null>(null);
@@ -956,6 +956,20 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
       const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
 
+      // Determine the fixed endpoint (the one NOT being dragged)
+      const edge = this.draggedEdge.edge;
+      const fixedEndpoint = this.draggedEdge.endpoint === 'source' ? 'target' : 'source';
+      const fixedNodeId = fixedEndpoint === 'source' ? edge.source : edge.target;
+      const fixedNode = this.internalGraph().nodes.find(n => n.id === fixedNodeId);
+      let fixedPoint: Position = { x: mouseX, y: mouseY };
+      if (fixedNode) {
+        const fixedPort = (fixedEndpoint === 'source' ? edge.sourcePort : edge.targetPort)
+          || this.findClosestPortForEdge(fixedNode, fixedNode, fixedEndpoint);
+        fixedPoint = this.getPortWorldPosition(fixedNode, fixedPort);
+      }
+
+      let dragPoint: Position = { x: mouseX, y: mouseY };
+
       // Find node under cursor
       const nodeId = this.findNodeAtPosition({ x: mouseX, y: mouseY });
 
@@ -970,6 +984,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         if (closestPort && closestPort.distance < 40) {
           this.hoveredPort = { nodeId, port: closestPort.port };
           this.hoveredNodeId = nodeId;
+          // Snap drag point to port
+          const hoveredNode = this.internalGraph().nodes.find(n => n.id === nodeId);
+          if (hoveredNode) {
+            dragPoint = this.getPortWorldPosition(hoveredNode, closestPort.port);
+          }
         } else {
           this.hoveredPort = null;
           this.hoveredNodeId = null;
@@ -980,6 +999,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         this.hoveredPort = null;
         this.hoveredNodeId = null;
       }
+
+      // Show rubber-band preview line from fixed endpoint to drag point
+      this.previewLine.set({ source: fixedPoint, target: dragPoint });
     } else if (this.connectingFrom) {
       // Rubber-band preview for drag-to-connect (mousedown on port → drag → mouseup on target port)
       const sourceId = this.connectingFrom.nodeId;
@@ -1115,21 +1137,21 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       }
     }
 
+    // Clear preview line if edge reconnection or drag-to-connect was active
+    if (this.draggedEdge || this.connectingFrom) {
+      this.previewLine.set(null);
+    }
+
     this.isPanning = false;
     this.draggedNode = null;
     this.draggedNodeOffsets.clear();
     this.draggedEdge = null;
+    this.connectingFrom = null;
     this.hoveredNodeId = null;
     this.hoveredPort = null;
     this.showAttachmentPoints.set(null);
     this.resizingNode = null;
     this.snapGuides.set([]);
-
-    // Clear drag-to-connect state and preview line
-    if (this.connectingFrom) {
-      this.connectingFrom = null;
-      this.previewLine.set(null);
-    }
   }
 
   onNodeMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1182,7 +1204,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
   }
 
-  onAttachmentPointMouseDown(event: MouseEvent, node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): void {
+  onAttachmentPointMouseDown(event: MouseEvent, node: GraphNode, port: string): void {
     event.stopPropagation();
     if (this.readonly) return;
 
@@ -1196,7 +1218,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
   }
 
-  onAttachmentPointClick(event: MouseEvent, node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): void {
+  onAttachmentPointClick(event: MouseEvent, node: GraphNode, port: string): void {
     // No-op: connections are now created via drag-to-connect (onAttachmentPointMouseDown)
     event.stopPropagation();
   }
@@ -1804,8 +1826,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     if (!sourceNode || !targetNode) return '';
 
-    const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-    const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+    const sourcePort = edge.sourcePort || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+    const targetPort = edge.targetPort || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
 
     const s = this.getPortWorldPosition(sourceNode, sourcePort);
     const t = this.getPortWorldPosition(targetNode, targetPort);
@@ -1848,9 +1870,20 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return `M ${s.x},${s.y} L ${t.x},${t.y}`;
   }
 
+  // Port spacing/margin — resolved from theme config
+  private get portSpacing(): number { return this.resolvedTheme?.port.spacing ?? 75; }
+  private get portMargin(): number { return this.resolvedTheme?.port.margin ?? 15; }
+
+  /** Extract the side name from a port ID (e.g. 'top-1' → 'top', 'left' → 'left'). */
+  private getPortSide(port: string): 'top' | 'bottom' | 'left' | 'right' {
+    const side = port.split('-')[0] as 'top' | 'bottom' | 'left' | 'right';
+    return side;
+  }
+
   /** Get the control point offset direction for a port (used by bezier path). */
-  private getPortControlOffset(port: 'top' | 'bottom' | 'left' | 'right', offset: number): { dx: number; dy: number } {
-    switch (port) {
+  private getPortControlOffset(port: string, offset: number): { dx: number; dy: number } {
+    const side = this.getPortSide(port);
+    switch (side) {
       case 'top': return { dx: 0, dy: -offset };
       case 'bottom': return { dx: 0, dy: offset };
       case 'left': return { dx: -offset, dy: 0 };
@@ -1900,7 +1933,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return { x: 0, y: 0 };
 
-    const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+    const sourcePort = edge.sourcePort || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
     return this.getPortWorldPosition(sourceNode, sourcePort);
   }
 
@@ -1909,7 +1942,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return { x: 0, y: 0 };
 
-    const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+    const targetPort = edge.targetPort || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
     return this.getPortWorldPosition(targetNode, targetPort);
   }
 
@@ -2325,17 +2358,40 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2);
   }
 
-  getNodePorts(node: GraphNode): Array<{ position: 'top' | 'bottom' | 'left' | 'right'; x: number; y: number }> {
-    const size = this.getNodeSize(node);
-    return [
-      { position: 'top', x: size.width / 2, y: 0 },
-      { position: 'bottom', x: size.width / 2, y: size.height },
-      { position: 'left', x: 0, y: size.height / 2 },
-      { position: 'right', x: size.width, y: size.height / 2 }
-    ];
+  /** Compute evenly-spaced port positions along a side, always including the center. */
+  private computePortPositions(sideLength: number): number[] {
+    const center = sideLength / 2;
+    const positions: number[] = [center];
+    // Add symmetric pairs outward from center until hitting margin boundary
+    let offset = this.portSpacing;
+    while (center - offset >= this.portMargin && center + offset <= sideLength - this.portMargin) {
+      positions.unshift(center - offset);
+      positions.push(center + offset);
+      offset += this.portSpacing;
+    }
+    return positions;
   }
 
-  private findClosestPort(nodeId: string, worldPos: Position): { port: 'top' | 'bottom' | 'left' | 'right'; distance: number } | null {
+  getNodePorts(node: GraphNode): Array<{ position: string; x: number; y: number }> {
+    const size = this.getNodeSize(node);
+    const ports: Array<{ position: string; x: number; y: number }> = [];
+
+    const hPositions = this.computePortPositions(size.width);
+    const vPositions = this.computePortPositions(size.height);
+
+    // Top side: ports along x at y=0
+    hPositions.forEach((x: number, i: number) => ports.push({ position: `top-${i}`, x, y: 0 }));
+    // Bottom side: ports along x at y=height
+    hPositions.forEach((x: number, i: number) => ports.push({ position: `bottom-${i}`, x, y: size.height }));
+    // Left side: ports along y at x=0
+    vPositions.forEach((y: number, i: number) => ports.push({ position: `left-${i}`, x: 0, y }));
+    // Right side: ports along y at x=width
+    vPositions.forEach((y: number, i: number) => ports.push({ position: `right-${i}`, x: size.width, y }));
+
+    return ports;
+  }
+
+  private findClosestPort(nodeId: string, worldPos: Position): { port: string; distance: number } | null {
     const node = this.internalGraph().nodes.find(n => n.id === nodeId);
     if (!node) return null;
 
@@ -2359,52 +2415,67 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return closestPort ? { port: closestPort.position, distance: minDistance } : null;
   }
 
-  private getPortWorldPosition(node: GraphNode, port: 'top' | 'bottom' | 'left' | 'right'): Position {
+  private getPortWorldPosition(node: GraphNode, port: string): Position {
     const size = this.getNodeSize(node);
-    const portOffsets = {
-      top: { x: size.width / 2, y: 0 },
-      bottom: { x: size.width / 2, y: size.height },
-      left: { x: 0, y: size.height / 2 },
-      right: { x: size.width, y: size.height / 2 }
-    };
+    const side = this.getPortSide(port);
+    const parts = port.split('-');
+    const index = parts.length > 1 ? parseInt(parts[1], 10) : -1;
 
-    const offset = portOffsets[port];
-    return {
-      x: node.position.x + offset.x,
-      y: node.position.y + offset.y
-    };
+    // Legacy port IDs ('top', 'bottom', 'left', 'right') resolve to center of side
+    if (index < 0 || isNaN(index)) {
+      const legacyOffsets: Record<string, { x: number; y: number }> = {
+        top: { x: size.width / 2, y: 0 },
+        bottom: { x: size.width / 2, y: size.height },
+        left: { x: 0, y: size.height / 2 },
+        right: { x: size.width, y: size.height / 2 }
+      };
+      const offset = legacyOffsets[side] || { x: size.width / 2, y: 0 };
+      return { x: node.position.x + offset.x, y: node.position.y + offset.y };
+    }
+
+    // New-style port IDs: compute position using shared algorithm
+    let offsetX = 0;
+    let offsetY = 0;
+    if (side === 'top' || side === 'bottom') {
+      const hPositions = this.computePortPositions(size.width);
+      offsetX = hPositions[Math.min(index, hPositions.length - 1)];
+      offsetY = side === 'top' ? 0 : size.height;
+    } else {
+      const vPositions = this.computePortPositions(size.height);
+      offsetX = side === 'left' ? 0 : size.width;
+      offsetY = vPositions[Math.min(index, vPositions.length - 1)];
+    }
+
+    return { x: node.position.x + offsetX, y: node.position.y + offsetY };
   }
 
   private findClosestPortForEdge(
     node: GraphNode,
     otherNode: GraphNode,
     endpoint: 'source' | 'target'
-  ): 'top' | 'bottom' | 'left' | 'right' {
-    const size = this.getNodeSize(node);
-    const nodeCenter = {
-      x: node.position.x + size.width / 2,
-      y: node.position.y + size.height / 2
-    };
+  ): string {
     const otherSize = this.getNodeSize(otherNode);
-    const otherCenter = {
+    const otherCenter: Position = {
       x: otherNode.position.x + otherSize.width / 2,
       y: otherNode.position.y + otherSize.height / 2
     };
 
-    const dx = otherCenter.x - nodeCenter.x;
-    const dy = otherCenter.y - nodeCenter.y;
-
-    // Determine which port is closest based on relative position
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-
-    if (absDx > absDy) {
-      // Horizontal connection
-      return dx > 0 ? 'right' : 'left';
-    } else {
-      // Vertical connection
-      return dy > 0 ? 'bottom' : 'top';
+    // Find the port closest to the other node's center
+    const ports = this.getNodePorts(node);
+    let bestPort = ports[0];
+    let bestDist = Infinity;
+    for (const p of ports) {
+      const wx = node.position.x + p.x;
+      const wy = node.position.y + p.y;
+      const dx = otherCenter.x - wx;
+      const dy = otherCenter.y - wy;
+      const dist = dx * dx + dy * dy;
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestPort = p;
+      }
     }
+    return bestPort.position;
   }
 
   /** Get the component type for a node (from NodeTypeDefinition.component, if set). */
@@ -2457,8 +2528,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
     if (!sourceNode || !targetNode) return null;
 
-    const sourcePort = (edge.sourcePort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-    const targetPort = (edge.targetPort as 'top' | 'bottom' | 'left' | 'right') || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+    const sourcePort = edge.sourcePort || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+    const targetPort = edge.targetPort || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
 
     const s = this.getPortWorldPosition(sourceNode, sourcePort);
     const t = this.getPortWorldPosition(targetNode, targetPort);
@@ -2491,8 +2562,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       // Evaluate piecewise linear step path at t
       const midX = (s.x + t.x) / 2;
       const midY = (s.y + t.y) / 2;
-      const isSourceVertical = sourcePort === 'top' || sourcePort === 'bottom';
-      const isTargetVertical = targetPort === 'top' || targetPort === 'bottom';
+      const sourceSide = this.getPortSide(sourcePort);
+      const targetSide = this.getPortSide(targetPort);
+      const isSourceVertical = sourceSide === 'top' || sourceSide === 'bottom';
+      const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
 
       let segments: Position[];
       if (isSourceVertical && isTargetVertical) {

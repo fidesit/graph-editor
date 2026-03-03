@@ -4,21 +4,6 @@
     <!-- Top horizontal toolbar -->
     @if (config.toolbar?.enabled !== false) {
       <div class="graph-toolbar-top">
-        <!-- Tools -->
-        @if (showToolbarItem('hand')) {
-          <button
-            class="toolbar-btn"
-            [class.active]="activeTool() === 'hand'"
-            title="Hand tool (move nodes)"
-            (click)="switchTool('hand')"
-          >
-            <span class="icon">✋</span>
-          </button>
-        }
-        @if (showToolbarDivider(['hand'], ['zoom-in', 'zoom-out'])) {
-          <div class="toolbar-divider"></div>
-        }
-
         <!-- Zoom -->
         @if (showToolbarItem('zoom-in')) {
           <button
@@ -45,7 +30,7 @@
           </button>
         }
 
-        @if (showToolbarDivider(['hand', 'zoom-in', 'zoom-out'], ['layout', 'fit'])) {
+        @if (showToolbarDivider(['zoom-in', 'zoom-out'], ['layout', 'fit'])) {
           <div class="toolbar-divider"></div>
         }
 
@@ -76,7 +61,7 @@
           </button>
         }
 
-        @if (showToolbarDivider(['hand', 'zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
+        @if (showToolbarDivider(['zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
           <div class="toolbar-divider"></div>
         }
 
