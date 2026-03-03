@@ -381,8 +381,9 @@ npm test
 
 ## Roadmap
 
+### Completed
+
 - [x] ~~Custom node components via `foreignObject`~~ — Template injection + `ngComponentOutlet`
-- [ ] Port-based connections with type checking
 - [x] ~~Context menus~~ — Event emits on right-click (see demo for example UI)
 - [x] ~~Multi-select~~ — Box selection (Shift+drag) and Ctrl+Click toggle
 - [x] ~~Keyboard shortcuts~~ — Delete, arrows, Escape, Undo/Redo
@@ -392,8 +393,49 @@ npm test
 - [x] ~~Node resize~~ — Drag corner handle with Hand tool
 - [x] ~~Text wrapping~~ — Labels wrap and auto-size within node bounds
 - [x] ~~Comprehensive theming~~ — Full ThemeConfig with 7 sub-interfaces + CSS custom properties bridge
-- [ ] Minimap
+
+### Interaction & Editing
+
+- [ ] Copy/paste — Ctrl+C/V to duplicate nodes (with offset) and their internal edges
+- [ ] Snap guides — Alignment lines when dragging near another node's edge/center
+- [ ] Edge labels — Clickable, editable text on edges (conditions, weights, transition names)
+- [ ] Edge waypoints — Draggable midpoints on edges to create manual routing bends
+- [ ] Drag-to-connect — Drag from a port directly to another node (instead of two-click line tool)
+- [ ] Group/collapse — Select multiple nodes and group into a collapsible container node
+
+### Navigation & Visualization
+
+- [ ] Minimap — Small overview panel with viewport indicator
+- [ ] Search/filter — Ctrl+F to find nodes by label/type, dim non-matching ones
+- [ ] Heatmap overlay — Color nodes by a numeric metric using `overlayData`
+- [ ] Edge animation — Animated dashes flowing along edges to show data direction/activity
+- [ ] Zoom to selection — Double-click a node to zoom and center on it
+
+### Data & Export
+
+- [ ] Export as image — SVG/PNG export of the current canvas
+- [ ] Import/export JSON — Toolbar button or API to serialize/deserialize the graph
+- [ ] Clipboard integration — Paste graph JSON from clipboard to import subgraphs
+
+### Validation & Feedback
+
+- [ ] Port-based connections with type checking — Color-coded ports that only accept compatible connections
+- [ ] Inline validation badges — Show error/warning icons directly on offending nodes
+- [ ] Max connections indicator — Show remaining connection slots on ports
+
+### Developer Experience
+
+- [ ] Event hooks — `beforeNodeRemove`, `beforeEdgeAdd` etc. that can cancel operations
+- [ ] Custom toolbar items — Inject custom buttons/components into the toolbar via template projection
+- [ ] Readonly per-node — Lock individual nodes from editing while others remain editable
+- [ ] Touch/mobile support — Pinch-to-zoom, touch drag, long-press for context menu
 - [ ] Accessibility improvements
+
+### Layout
+
+- [ ] Multiple layout algorithms — Force-directed, circular, tree (not just dagre)
+- [ ] Incremental layout — Re-layout only the neighborhood of a changed node
+- [ ] Swim lanes — Horizontal/vertical partitions that nodes snap into
 
 ## Contributing
 

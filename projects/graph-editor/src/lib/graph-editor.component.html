@@ -269,6 +269,45 @@
           }
         }
 
+        <!-- Layer 1.5: Edge labels -->
+        @for (edge of internalGraph().edges; track edge.id) {
+          @if (getEdgeLabel(edge) && editingEdgeLabel()?.edgeId !== edge.id) {
+            <g
+              class="edge-label-group"
+              [class.selected]="selection().edges.includes(edge.id)"
+              (mousedown)="$event.stopPropagation()"
+              (click)="onEdgeLabelClick($event, edge)"
+              (dblclick)="onEdgeLabelDoubleClick($event, edge)"
+              (mouseup)="$event.preventDefault()"
+            >
+              @if (getEdgeLabelRect(edge); as rect) {
+                <rect
+                  class="edge-label-bg"
+                  [attr.x]="rect.x"
+                  [attr.y]="rect.y"
+                  [attr.width]="rect.width"
+                  [attr.height]="rect.height"
+                  [attr.rx]="resolvedTheme.edge.label.borderRadius"
+                  [attr.fill]="selection().edges.includes(edge.id) ? resolvedTheme.edge.label.selectedBackground : resolvedTheme.edge.label.background"
+                  [attr.stroke]="resolvedTheme.edge.label.borderColor"
+                  [attr.stroke-width]="resolvedTheme.edge.label.borderWidth"
+                />
+                <text
+                  class="edge-label-text"
+                  [attr.x]="rect.x + rect.width / 2"
+                  [attr.y]="rect.y + rect.height / 2"
+                  text-anchor="middle"
+                  dominant-baseline="central"
+                  [attr.font-size]="resolvedTheme.edge.label.fontSize"
+                  [attr.font-family]="resolvedTheme.edge.label.fontFamily"
+                  [attr.font-weight]="resolvedTheme.edge.label.fontWeight"
+                  [attr.fill]="selection().edges.includes(edge.id) ? resolvedTheme.edge.label.selectedColor : resolvedTheme.edge.label.color"
+                >{{ getEdgeLabel(edge) }}</text>
+              }
+            </g>
+          }
+        }
+
         <!-- Layer 2: Nodes -->
         @for (node of internalGraph().nodes; track node.id) {
           <g
@@ -400,6 +439,28 @@
       </g>
     </svg>
   </div>
+
+  <!-- Edge label edit overlay -->
+  @if (editingEdgeLabelScreenPos(); as pos) {
+    <div
+      class="edge-label-edit-overlay"
+      [style.left.px]="pos.x"
+      [style.top.px]="pos.y"
+    >
+      <input
+        #edgeLabelInput
+        type="text"
+        class="edge-label-input"
+        [value]="editingEdgeLabel()?.value || ''"
+        [style.font-size.px]="resolvedTheme.edge.label.fontSize"
+        [style.font-family]="resolvedTheme.edge.label.fontFamily"
+        [style.font-weight]="resolvedTheme.edge.label.fontWeight"
+        (keydown.enter)="commitEdgeLabelEdit($any($event.target).value); $event.preventDefault()"
+        (keydown.escape)="cancelEdgeLabelEdit(); $event.preventDefault(); $event.stopPropagation()"
+        (blur)="commitEdgeLabelEdit($any($event.target).value)"
+      />
+    </div>
+  }
 
   <!-- Edge direction selector overlay -->
   @if (selectedEdgeMidpoint()) {

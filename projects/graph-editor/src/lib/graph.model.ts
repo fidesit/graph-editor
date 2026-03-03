@@ -39,6 +39,7 @@ export interface GraphEdge {
   sourcePort?: string;                 // Optional source port identifier
   targetPort?: string;                 // Optional target port identifier
   direction?: 'forward' | 'backward' | 'bidirectional'; // Edge direction (default: forward)
+  label?: string;                      // Display label on the edge
   data?: Record<string, any>;          // Arbitrary user data
   metadata?: EdgeMetadata;             // Optional metadata
 }

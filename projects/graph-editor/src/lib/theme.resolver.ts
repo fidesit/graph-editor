@@ -1,4 +1,4 @@
-import {ThemeConfig, ToolbarTheme} from './graph-editor.config';
+import {ThemeConfig, ToolbarTheme, EdgeLabelTheme} from './graph-editor.config';
 
 /**
  * Fully-resolved theme with no optional fields.
@@ -36,6 +36,22 @@ export interface ResolvedTheme {
     markerColor: string;
     selectedMarkerColor: string;
     pathType: 'straight' | 'bezier' | 'step';
+    label: {
+      fontSize: number;
+      fontFamily: string;
+      fontWeight: number | string;
+      color: string;
+      background: string;
+      borderRadius: number;
+      borderColor: string;
+      borderWidth: number;
+      paddingX: number;
+      paddingY: number;
+      selectedColor: string;
+      selectedBackground: string;
+      position: number;
+      offsetY: number;
+    };
   };
   port: {
     fill: string;
@@ -102,6 +118,7 @@ export function resolveTheme(theme?: ThemeConfig): ResolvedTheme {
       markerColor: theme?.edge?.markerColor ?? '#94a3b8',
       selectedMarkerColor: theme?.edge?.selectedMarkerColor ?? selectionColor,
       pathType: theme?.edge?.pathType ?? 'straight',
+      label: resolveEdgeLabel(theme?.edge?.label, selectionColor, theme?.font?.family),
     },
     port: {
       fill: theme?.port?.fill ?? '#94a3b8',
@@ -121,6 +138,25 @@ export function resolveTheme(theme?: ThemeConfig): ResolvedTheme {
       monoFamily: theme?.font?.monoFamily ?? 'monospace',
     },
     toolbar: resolveToolbar(theme?.toolbar, selectionColor),
+  };
+}
+
+function resolveEdgeLabel(label: EdgeLabelTheme | undefined, selectionColor: string, fontFamily?: string) {
+  return {
+    fontSize: label?.fontSize ?? 12,
+    fontFamily: label?.fontFamily ?? fontFamily ?? 'system-ui, -apple-system, sans-serif',
+    fontWeight: label?.fontWeight ?? 500,
+    color: label?.color ?? '#475569',
+    background: label?.background ?? 'rgba(255, 255, 255, 0.9)',
+    borderRadius: label?.borderRadius ?? 4,
+    borderColor: label?.borderColor ?? 'transparent',
+    borderWidth: label?.borderWidth ?? 0,
+    paddingX: label?.paddingX ?? 6,
+    paddingY: label?.paddingY ?? 2,
+    selectedColor: label?.selectedColor ?? selectionColor,
+    selectedBackground: label?.selectedBackground ?? 'rgba(255, 255, 255, 0.95)',
+    position: label?.position ?? 0.5,
+    offsetY: label?.offsetY ?? 0,
   };
 }
 
@@ -166,6 +202,15 @@ export function applyThemeCssProperties(host: HTMLElement, t: ResolvedTheme, use
   style.setProperty('--ge-edge-stroke', t.edge.stroke);
   style.setProperty('--ge-edge-stroke-width', `${t.edge.strokeWidth}px`);
   style.setProperty('--ge-edge-selected-stroke', t.edge.selectedStroke);
+
+  // Edge label
+  style.setProperty('--ge-edge-label-font-size', `${t.edge.label.fontSize}px`);
+  style.setProperty('--ge-edge-label-font-family', t.edge.label.fontFamily);
+  style.setProperty('--ge-edge-label-font-weight', `${t.edge.label.fontWeight}`);
+  style.setProperty('--ge-edge-label-color', t.edge.label.color);
+  style.setProperty('--ge-edge-label-bg', t.edge.label.background);
+  style.setProperty('--ge-edge-label-border-radius', `${t.edge.label.borderRadius}px`);
+  style.setProperty('--ge-edge-label-selected-color', t.edge.label.selectedColor);
 
   // Port
   style.setProperty('--ge-port-fill', t.port.fill);

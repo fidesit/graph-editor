@@ -335,6 +335,43 @@ export interface EdgeTheme {
   selectedMarkerColor?: string;
   /** Edge path routing algorithm (default: 'straight') */
   pathType?: 'straight' | 'bezier' | 'step';
+  /** Edge label styling */
+  label?: EdgeLabelTheme;
+}
+
+/**
+ * Edge label visual theme.
+ * Controls the appearance of text labels displayed on edges.
+ */
+export interface EdgeLabelTheme {
+  /** Label font size in px (default: 12) */
+  fontSize?: number;
+  /** Label font family (default: inherits from font.family) */
+  fontFamily?: string;
+  /** Label font weight (default: 500) */
+  fontWeight?: number | string;
+  /** Label text color (default: '#475569') */
+  color?: string;
+  /** Label background color (default: 'rgba(255, 255, 255, 0.9)') */
+  background?: string;
+  /** Label background corner radius in px (default: 4) */
+  borderRadius?: number;
+  /** Label background border color (default: 'transparent') */
+  borderColor?: string;
+  /** Label background border width in px (default: 0) */
+  borderWidth?: number;
+  /** Horizontal padding inside label background in px (default: 6) */
+  paddingX?: number;
+  /** Vertical padding inside label background in px (default: 2) */
+  paddingY?: number;
+  /** Label text color when edge is selected (default: selection.color) */
+  selectedColor?: string;
+  /** Label background when edge is selected (default: 'rgba(255, 255, 255, 0.95)') */
+  selectedBackground?: string;
+  /** Position along the edge path, 0 = source, 1 = target (default: 0.5) */
+  position?: number;
+  /** Vertical offset from the edge path in px (default: 0, negative = above) */
+  offsetY?: number;
 }
 
 /**

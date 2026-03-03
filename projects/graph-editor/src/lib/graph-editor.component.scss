@@ -167,6 +167,49 @@
   filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.25));
 }
 
+// Edge labels
+.edge-label-group {
+  cursor: default;
+}
+
+.edge-label-bg {
+  transition: fill 0.15s, stroke 0.15s;
+  pointer-events: all;
+}
+
+.edge-label-text {
+  transition: fill 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: all;
+}
+
+// Inline edge label edit overlay
+.edge-label-edit-overlay {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: auto;
+}
+
+.edge-label-input {
+  min-width: 60px;
+  max-width: 240px;
+  padding: 2px 6px;
+  border: 1.5px solid var(--ge-selection-color, #3b82f6);
+  border-radius: var(--ge-edge-label-border-radius, 4px);
+  background: var(--ge-edge-label-bg, rgba(255, 255, 255, 0.95));
+  color: var(--ge-edge-label-color, #475569);
+  text-align: center;
+  outline: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+  &:focus {
+    border-color: var(--ge-selection-color, #3b82f6);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .edge-line {
   transition: stroke 0.15s, stroke-width 0.15s;
 }
@@ -241,6 +284,8 @@
   backdrop-filter: blur(4px);
   z-index: 20;
   pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .direction-btn {

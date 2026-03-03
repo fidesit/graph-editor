@@ -46,6 +46,7 @@ export type {
   NodeTheme,
   NodeTypeStyle,
   EdgeTheme,
+  EdgeLabelTheme,
   PortTheme,
   SelectionTheme,
   FontTheme,
