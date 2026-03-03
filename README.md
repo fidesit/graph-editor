@@ -152,7 +152,7 @@ onGraphChange(graph: Graph): void {
 | `canvas` | `CanvasConfig` | Canvas behavior (grid, zoom, pan) |
 | `validation` | `ValidationConfig` | Validation rules |
 | `palette` | `PaletteConfig` | Node palette configuration |
-| `layout` | `LayoutConfig` | Layout algorithm (dagre) |
+| `layout` | `LayoutConfig` | Layout algorithm (dagre, force, tree) |
 | `theme` | `ThemeConfig` | Visual theme (shadows, CSS variables) |
 | `toolbar` | `ToolbarConfig` | Top toolbar visibility and button selection |
 
@@ -311,7 +311,7 @@ clearSelection(): void;
 getSelection(): SelectionState;
 
 // Layout
-applyLayout(direction?: 'TB' | 'LR'): Promise<void>;
+applyLayout(algorithm?: 'dagre-tb' | 'dagre-lr' | 'force' | 'tree'): Promise<void>;
 fitToScreen(padding?: number): void;
 zoomTo(level: number): void;
 
@@ -437,7 +437,7 @@ npm test
 
 ### Layout
 
-- [ ] Multiple layout algorithms — Force-directed, circular, tree (not just dagre)
+- [x] ~~Multiple layout algorithms~~ — Hierarchical (dagre TB/LR), force-directed, and tree layouts with dropdown switcher
 - [ ] Incremental layout — Re-layout only the neighborhood of a changed node
 - [ ] Swim lanes — Horizontal/vertical partitions that nodes snap into
 

@@ -290,6 +290,16 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               </dl>
             </div>
             <div class="help-section">
+              <h3>Layout</h3>
+              <dl>
+                <div><dt><kbd>Layout btn</kbd></dt><dd>Apply last-used layout</dd></div>
+                <div><dt><kbd>Chevron ▾</kbd></dt><dd>Switch algorithm</dd></div>
+                <div><dt>Hierarchical</dt><dd>Dagre top-down / left-right</dd></div>
+                <div><dt>Force</dt><dd>Physics-based organic</dd></div>
+                <div><dt>Tree</dt><dd>BFS tree / forest</dd></div>
+              </dl>
+            </div>
+            <div class="help-section">
               <h3>Theming</h3>
               <dl>
                 <div><dt><kbd>Theme picker</kbd></dt><dd>Switch presets</dd></div>

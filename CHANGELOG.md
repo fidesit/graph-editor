@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2026-03-03
+
+### Added
+
+- **Multiple layout algorithms** — Layout toolbar button now has a chevron dropdown to switch between Hierarchical ↓ (dagre TB), Hierarchical → (dagre LR), Force-directed, and Tree layouts. Last-used algorithm is remembered.
+- **Force-directed layout** — Physics-based layout using repulsion/attraction forces. Zero new dependencies — implemented from scratch. Configurable via `iterations`, `repulsionStrength`, and `attractionStrength` in `LayoutOptions`.
+- **Tree layout** — BFS-based hierarchical tree layout that handles forests (multiple disconnected trees) and cyclic graphs gracefully. Configurable via `levelSeparation` and `siblingSpacing` in `LayoutOptions`.
+- **Dropdown theme customization** — New `ToolbarTheme` properties (`dropdownBackground`, `dropdownBorderColor`, `dropdownBorderRadius`, `dropdownShadow`, `dropdownItemColor`, `dropdownItemHoverBackground`, `dropdownItemActiveColor`) and matching `--ge-dropdown-*` CSS custom properties for full dropdown styling control.
+
+### Changed
+
+- **`LayoutConfig.algorithm`** now accepts `'dagre' | 'force' | 'tree' | 'manual'` (was `'dagre' | 'manual'`).
+- **`LayoutOptions`** extended with force-directed and tree-specific options.
+- **`applyLayout()`** refactored into a dispatcher that delegates to algorithm-specific methods. Accepts optional algorithm override parameter. Legacy `applyLayout('TB')` / `applyLayout('LR')` calls are mapped automatically.
+
 ## [1.0.8] - 2026-03-03
 
 ### Added
