@@ -271,8 +271,9 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             <div class="help-section">
               <h3>Edges</h3>
               <dl>
-                <div><dt><kbd>Line tool</kbd></dt><dd>Draw mode</dd></div>
-                <div><dt><kbd>Click \u2192 Click</kbd></dt><dd>Connect</dd></div>
+                <div><dt><kbd>Select node</kbd></dt><dd>Show ports</dd></div>
+                <div><dt><kbd>Drag port</kbd></dt><dd>Connect to target</dd></div>
+                <div><dt><kbd>Drag endpoint</kbd></dt><dd>Reconnect edge</dd></div>
                 <div><dt><kbd>Click edge</kbd></dt><dd>Direction</dd></div>
                 <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Toggle select</dd></div>
               </dl>

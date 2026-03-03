@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-03-03
+
+### Added
+
+- **Copy/Paste/Cut** — `Ctrl+C` / `Ctrl+V` / `Ctrl+X` to copy, paste, and cut selected nodes with their internal edges. Pasted nodes are offset and become the new selection. Fully undo-compatible.
+- **Snap alignment guides** — Dashed guide lines appear when dragging nodes near another node's edges or center (5px threshold, zoom-aware). Guide snap takes priority over grid snap per axis. Also active during node resize.
+- **Drag-to-connect** — Select a node to reveal its ports, hover a port to highlight it, then drag from the port to a target port on another node to create an edge. Replaces the old two-click line tool.
+- **Multiple anchor points** — Nodes now show multiple evenly-spaced ports per side, computed dynamically from node size. Center port is always present. Ports never sit on corners.
+- **Configurable port density** — New `PortTheme.spacing` (default: 75) and `PortTheme.margin` (default: 15) control how many ports appear per side and the corner inset distance.
+- **Edge endpoint dragging** — Drag the source or target handle of a selected edge to reconnect it to a different node/port, with rubber-band preview line and port snapping.
+
+### Changed
+
+- **Line tool removed** — The two-click line tool has been removed. Edges are now created exclusively via drag-to-connect from ports.
+- **Hand tool button removed** — With only one tool remaining, the hand tool toolbar button is no longer shown. `'hand'` and `'line'` removed from `ToolbarItem` type.
+- **Port system refactored** — Port IDs changed from `'top' | 'bottom' | 'left' | 'right'` to indexed strings (`'top-0'`, `'top-1'`, etc.). Legacy port IDs on existing edges remain backward compatible.
+- **`findClosestPortForEdge`** now picks the closest port across all sides (not just the nearest side), improving edge routing accuracy with multiple ports.
+
+
 ## [1.0.7] - 2026-03-01
 
 ### Added

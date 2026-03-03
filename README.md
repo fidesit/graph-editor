@@ -31,6 +31,10 @@ Configuration-driven visual graph editor for Angular 19+.
 - 🛠️ **Built-in toolbar** — Tools, zoom controls, layout actions in top bar; node palette on left
 - 🧩 **Custom rendering** — ng-template injection for nodes (HTML or SVG) and edges, plus `ngComponentOutlet` support
 - 🔀 **Edge path strategies** — Straight, bezier, and step routing algorithms
+- 📋 **Copy/Paste/Cut** — Ctrl+C/V/X to duplicate or cut selected nodes with their internal edges
+- 📐 **Snap alignment guides** — Visual guide lines when dragging near other nodes' edges or center
+- 🔗 **Drag-to-connect** — Select node to reveal ports, drag from port to create edges
+- 🔵 **Multiple anchor points** — Dynamic port density per side with configurable spacing
 
 ## Installation
 
@@ -396,11 +400,11 @@ npm test
 
 ### Interaction & Editing
 
-- [ ] Copy/paste — Ctrl+C/V to duplicate nodes (with offset) and their internal edges
-- [ ] Snap guides — Alignment lines when dragging near another node's edge/center
+- [x] ~~Copy/paste~~ — Ctrl+C/V/X to duplicate or cut nodes with their internal edges
+- [x] ~~Snap guides~~ — Alignment lines when dragging near another node's edge/center (also during resize)
+- [x] ~~Drag-to-connect~~ — Select node to reveal ports, drag from port to connect (replaces line tool)
 - [ ] Edge labels — Clickable, editable text on edges (conditions, weights, transition names)
 - [ ] Edge waypoints — Draggable midpoints on edges to create manual routing bends
-- [ ] Drag-to-connect — Drag from a port directly to another node (instead of two-click line tool)
 - [ ] Group/collapse — Select multiple nodes and group into a collapsible container node
 
 ### Navigation & Visualization
