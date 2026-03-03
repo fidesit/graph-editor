@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-03-03
+
+### Fixed
+
+- **Bezier edge path routing** — Edges now follow natural, direct paths after applying hierarchical or tree layout. Previously, `findClosestPortForEdge()` picked ports by geometric proximity alone, causing edges between vertically-arranged nodes to route through side ports (left/right) instead of top/bottom — producing sideways S-curves and loops. The algorithm now scores ports by directional alignment (dot product of port outward normal vs. direction to target) with distance as tiebreaker.
+- **Step path port detection** — Step edge routing now correctly identifies indexed port IDs like `'top-0'` as vertical/horizontal using `getPortSide()`, instead of failing on direct string comparison with `'top'`/`'bottom'`.
+
 ## [1.0.10] - 2026-03-03
 
 ### Fixed
