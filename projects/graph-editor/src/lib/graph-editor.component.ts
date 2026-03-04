@@ -875,14 +875,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   /** Shared post-layout: recalculate edge ports, update graph, emit change, fit to screen */
   private applyLayoutPositions(graph: Graph, updatedNodes: GraphNode[]): void {
-    const updatedEdges = graph.edges.map(edge => {
-      const sourceNode = updatedNodes.find(n => n.id === edge.source);
-      const targetNode = updatedNodes.find(n => n.id === edge.target);
-      if (!sourceNode || !targetNode) return edge;
-      const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-      const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-      return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-    });
+    const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+      graph.edges, updatedNodes, () => true
+    );
 
     this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
     this.emitGraphChange();
@@ -1050,16 +1045,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         };
         
         // Recalculate edge ports for edges connected to this node
-        const updatedEdges = graph.edges.map(edge => {
-          if (edge.source !== this.resizingNode!.id && edge.target !== this.resizingNode!.id) return edge;
-          const sourceNode = updatedNodes.find(n => n.id === edge.source);
-          const targetNode = updatedNodes.find(n => n.id === edge.target);
-          if (!sourceNode || !targetNode) return edge;
-          const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-          const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-          if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-          return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-        });
+        const resizingId = this.resizingNode!.id;
+        const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+          graph.edges, updatedNodes,
+          edge => edge.source === resizingId || edge.target === resizingId
+        );
         
         this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
         this.emitGraphChange();
@@ -1171,16 +1161,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       }
 
       // Recalculate ports for all edges connected to moved nodes
-      const updatedEdges = graph.edges.map(edge => {
-        if (!movedNodeIds.has(edge.source) && !movedNodeIds.has(edge.target)) return edge;
-        const sourceNode = updatedNodes.find(n => n.id === edge.source);
-        const targetNode = updatedNodes.find(n => n.id === edge.target);
-        if (!sourceNode || !targetNode) return edge;
-        const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-        const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-        if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-        return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-      });
+      const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+        graph.edges, updatedNodes,
+        edge => movedNodeIds.has(edge.source) || movedNodeIds.has(edge.target)
+      );
 
       this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
       this.emitGraphChange();
@@ -2025,24 +2009,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   private recalculateEdgePorts(nodeId: string): void {
     const graph = this.internalGraph();
-    let changed = false;
-    const updatedEdges = graph.edges.map(edge => {
-      if (edge.source !== nodeId && edge.target !== nodeId) return edge;
+    const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+      graph.edges, graph.nodes,
+      edge => edge.source === nodeId || edge.target === nodeId
+    );
 
-      const sourceNode = graph.nodes.find(n => n.id === edge.source);
-      const targetNode = graph.nodes.find(n => n.id === edge.target);
-      if (!sourceNode || !targetNode) return edge;
-
-      const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-      const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-
-      if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-
-      changed = true;
-      return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-    });
-
-    if (changed) {
+    if (updatedEdges !== graph.edges && updatedEdges.some((e, i) => e !== graph.edges[i])) {
       this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
   }
@@ -2683,6 +2655,47 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
 
     return { x: node.position.x + offsetX, y: node.position.y + offsetY };
+  }
+
+  /**
+   * Recalculate edge ports for edges matching a predicate, avoiding conflicts
+   * where multiple edges between the same node pair would get identical ports.
+   */
+  private recalculateEdgePortsWithConflictAvoidance(
+    edges: GraphEdge[],
+    nodes: GraphNode[],
+    affectsEdge: (edge: GraphEdge) => boolean
+  ): GraphEdge[] {
+    return edges.reduce<GraphEdge[]>((acc, edge) => {
+      if (!affectsEdge(edge)) { acc.push(edge); return acc; }
+
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) { acc.push(edge); return acc; }
+
+      const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+      const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
+
+      if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) {
+        acc.push(edge);
+        return acc;
+      }
+
+      // Check if an already-processed edge between the same pair already uses these ports
+      const wouldConflict = acc.some(other =>
+        ((other.source === edge.source && other.target === edge.target) ||
+         (other.source === edge.target && other.target === edge.source)) &&
+        other.sourcePort === newSourcePort &&
+        other.targetPort === newTargetPort
+      );
+
+      if (wouldConflict) {
+        acc.push(edge); // Keep original ports to avoid visual merging
+      } else {
+        acc.push({ ...edge, sourcePort: newSourcePort, targetPort: newTargetPort });
+      }
+      return acc;
+    }, []);
   }
 
   private findClosestPortForEdge(

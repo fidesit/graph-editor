@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.12] - 2026-03-04
+
+### Fixed
+
+- **Parallel edge port conflicts** — Multiple edges between the same node pair no longer collapse onto identical ports after layout, drag, or resize. A new `recalculateEdgePortsWithConflictAvoidance()` method detects when a freshly-computed port assignment duplicates an already-assigned sibling edge and preserves the original ports instead, preventing edges from visually merging into one.
+
 ## [1.0.11] - 2026-03-03
 
 ### Fixed
