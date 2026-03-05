@@ -1,6 +1,6 @@
 import { Component, signal, viewChild, computed, AfterViewInit } from '@angular/core';
 import { JsonPipe } from '@angular/common';
-import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError, ThemeConfig } from '@utisha/graph-editor';
+import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError, ThemeConfig, LifecycleHooks } from '@utisha/graph-editor';
 
 /**
  * SVG path data for demo icons.
@@ -189,6 +189,10 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             </select>
           </div>
           <label class="readonly-toggle">
+            <input type="checkbox" [checked]="guardsEnabled()" (change)="guardsEnabled.set($any($event.target).checked)" />
+            <span>Guards</span>
+          </label>
+          <label class="readonly-toggle">
             <input type="checkbox" [checked]="readonlyMode()" (change)="readonlyMode.set($any($event.target).checked)" />
             <span>Readonly</span>
           </label>
@@ -336,13 +340,13 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               </dl>
             </div>
             <div class="help-section">
-              <h3>Theming</h3>
+              <h3>Guards</h3>
               <dl>
-                <div><dt><kbd>Theme picker</kbd></dt><dd>Switch presets</dd></div>
-                <div><dt><kbd>ThemeConfig</kbd></dt><dd>Canvas, nodes, edges, ports, toolbar</dd></div>
-                <div><dt><kbd>ng-template</kbd></dt><dd>Custom node/edge rendering</dd></div>
-                <div><dt><kbd>pathType</kbd></dt><dd>straight / bezier / step</dd></div>
-                <div><dt><kbd>gridType</kbd></dt><dd>line / dot</dd></div>
+                <div><dt><kbd>Toggle</kbd></dt><dd>Enable/disable guards</dd></div>
+                <div><dt><kbd>canConnect</kbd></dt><dd>No self-loops or duplicates</dd></div>
+                <div><dt><kbd>beforeNodeAdd</kbd></dt><dd>Max 1 Start &amp; 1 End</dd></div>
+                <div><dt><kbd>beforeNodeRemove</kbd></dt><dd>Confirm Start/End delete</dd></div>
+                <div><dt><kbd>beforeEdgeAdd</kbd></dt><dd>Max 2 outgoing (non-Decision)</dd></div>
               </dl>
             </div>
           </div>
@@ -431,6 +435,16 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
         </div>
       </div>
     }
+
+    <!-- Toast notifications for lifecycle hook rejections -->
+    <div class="toast-container">
+      @for (toast of toasts(); track toast.id) {
+        <div class="toast" [class.toast-exit]="toast.exiting">
+          <span class="toast-icon">{{ toast.icon }}</span>
+          <span class="toast-message">{{ toast.message }}</span>
+        </div>
+      }
+    </div>
   `,
   styles: [`
     .demo-container {
@@ -1061,6 +1075,53 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
       gap: 8px;
       margin-top: 16px;
     }
+
+    /* Toast notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 8px;
+      z-index: 2000;
+      pointer-events: none;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #1e293b;
+      color: #f1f5f9;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      white-space: nowrap;
+    }
+
+    .toast-exit {
+      animation: toastOut 0.2s ease-in forwards;
+    }
+
+    .toast-icon {
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @keyframes toastOut {
+      from { opacity: 1; transform: translateY(0) scale(1); }
+      to { opacity: 0; transform: translateY(-8px) scale(0.95); }
+    }
   `]
 })
 export class AppComponent implements AfterViewInit {
@@ -1283,10 +1344,11 @@ export class AppComponent implements AfterViewInit {
     { type: 'approval', label: 'Approval', component: null as any, defaultData: { name: 'Review' } }
   ];
 
-  // Computed config based on theme
+  // Computed config based on theme + guards toggle
   editorConfig = computed<GraphEditorConfig>(() => {
     const preset = this.themes[this.currentTheme()];
     const readonly = this.readonlyMode();
+    const guards = this.guardsEnabled();
     return {
       nodes: {
         types: this.nodeTypes.map(t => ({ ...t, size: preset.nodeSize, iconSvg: preset.icons[t.type] })),
@@ -1305,7 +1367,8 @@ export class AppComponent implements AfterViewInit {
       palette: { enabled: !readonly, position: 'left' },
       toolbar: readonly ? { items: ['layout', 'fit'] } : undefined,
       theme: preset.theme,
-      validation: { validators: DEMO_VALIDATION_RULES, validateOnChange: false }
+      validation: { validators: DEMO_VALIDATION_RULES, validateOnChange: false },
+      hooks: guards ? this.buildLifecycleHooks() : undefined
     };
   });
 
@@ -1342,11 +1405,106 @@ export class AppComponent implements AfterViewInit {
 
   showHelp = signal(false);
   readonlyMode = signal(false);
+  guardsEnabled = signal(true);
   contextMenu = signal<ContextMenuEvent | null>(null);
   validationResult = signal<ValidationResult | null>(null);
   editingNode = signal<import('@utisha/graph-editor').GraphNode | null>(null);
   showImport = signal(false);
   importError = signal<string | null>(null);
+
+  // ── Toast notification system ───────────────────────────────────────
+  toasts = signal<{ id: number; icon: string; message: string; exiting: boolean }[]>([]);
+  private toastId = 0;
+
+  private showToast(icon: string, message: string): void {
+    const id = ++this.toastId;
+    this.toasts.set([...this.toasts(), { id, icon, message, exiting: false }]);
+    // Start exit animation after 2s, remove after animation completes
+    setTimeout(() => {
+      this.toasts.set(this.toasts().map(t => t.id === id ? { ...t, exiting: true } : t));
+      setTimeout(() => {
+        this.toasts.set(this.toasts().filter(t => t.id !== id));
+      }, 200);
+    }, 2000);
+  }
+
+  // ── Lifecycle hooks (enabled via "Guards" toggle) ───────────────────
+  //
+  // Demonstrates all five hook types with practical workflow rules:
+  //   canConnect        — sync:  no self-loops, no duplicates, Start has no incoming, End has no outgoing
+  //   beforeNodeAdd     — async: max 1 Start node, max 1 End node
+  //   beforeNodeRemove  — async: confirmation dialog for Start/End nodes
+  //   beforeEdgeAdd     — async: max 2 outgoing from non-Decision nodes
+  //   beforeEdgeRemove  — async: always allowed (no restriction)
+  //
+  private buildLifecycleHooks(): LifecycleHooks {
+    return {
+      canConnect: (source, target, graph) => {
+        // No self-loops
+        if (source.nodeId === target.nodeId) {
+          return false;
+        }
+        // No duplicate edges between same pair (same direction)
+        const duplicate = graph.edges.some(
+          e => e.source === source.nodeId && e.target === target.nodeId
+        );
+        if (duplicate) {
+          return false;
+        }
+        // Start nodes cannot receive incoming edges
+        const targetNode = graph.nodes.find(n => n.id === target.nodeId);
+        if (targetNode?.type === 'start') {
+          return false;
+        }
+        // End nodes cannot have outgoing edges
+        const sourceNode = graph.nodes.find(n => n.id === source.nodeId);
+        if (sourceNode?.type === 'end') {
+          return false;
+        }
+        return true;
+      },
+
+      beforeNodeAdd: (type, graph) => {
+        // Max 1 Start node
+        if (type === 'start' && graph.nodes.some(n => n.type === 'start')) {
+          this.showToast('🚫', 'Only one Start node allowed');
+          return false;
+        }
+        // Max 1 End node
+        if (type === 'end' && graph.nodes.some(n => n.type === 'end')) {
+          this.showToast('🚫', 'Only one End node allowed');
+          return false;
+        }
+        return true;
+      },
+
+      beforeNodeRemove: (nodes, _graph) => {
+        const critical = nodes.filter(n => n.type === 'start' || n.type === 'end');
+        if (critical.length > 0) {
+          const names = critical.map(n => n.data['name'] || n.type).join(', ');
+          return confirm(`Delete critical node(s): ${names}?`);
+        }
+        return true;
+      },
+
+      beforeEdgeAdd: (edge, graph) => {
+        // Non-Decision nodes: max 2 outgoing edges
+        const sourceNode = graph.nodes.find(n => n.id === edge.source);
+        if (sourceNode && sourceNode.type !== 'decision') {
+          const outgoing = graph.edges.filter(e => e.source === edge.source).length;
+          if (outgoing >= 2) {
+            this.showToast('🚫', `"${sourceNode.data['name'] || sourceNode.type}" already has 2 outgoing edges (use Decision for branching)`);
+            return false;
+          }
+        }
+        return true;
+      },
+
+      beforeEdgeRemove: (_edges, _graph) => {
+        return true;
+      }
+    };
+  }
 
   onGraphChange(graph: Graph): void {
     this.currentGraph.set(graph);

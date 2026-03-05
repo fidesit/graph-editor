@@ -62,5 +62,8 @@ export { renderIconSvg, iconToDataUrl } from './lib/icons/workflow-icons';
 export { NodeHtmlTemplateDirective, NodeSvgTemplateDirective, EdgeTemplateDirective } from './lib/template.directives';
 export type { NodeTemplateContext, EdgeTemplateContext } from './lib/template.directives';
 
+// Lifecycle hooks
+export type { LifecycleHooks, ConnectionEndpoint } from './lib/lifecycle-hooks';
+
 // Theme resolver
 export type { ResolvedTheme } from './lib/theme.resolver';

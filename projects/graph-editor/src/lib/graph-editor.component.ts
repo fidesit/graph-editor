@@ -45,6 +45,7 @@ import {
   rankPortsForEdge, findClosestPortForEdge as findClosestPortForEdgeUtil
 } from './utils/port-geometry.utils';
 import { layoutDagre as layoutDagreUtil, layoutCompact as layoutCompactUtil } from './utils/layout-algorithms';
+import { invokeAsyncHook, invokeSyncHook } from './lifecycle-hooks';
 
 // ── Constants ──
 const DOUBLE_CLICK_TIMEOUT_MS = 400;
@@ -315,7 +316,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   /** Add node triggered from palette button — plays fly-in animation from the button to the canvas. */
-  addNodeFromPalette(type: string, event: MouseEvent): void {
+  async addNodeFromPalette(type: string, event: MouseEvent): Promise<void> {
+    // Check beforeNodeAdd hook (user-initiated via palette)
+    const allowed = await invokeAsyncHook(this.config.hooks?.beforeNodeAdd, type, this.internalGraph());
+    if (!allowed) return;
+
     const btn = (event.target as HTMLElement).closest('.palette-item') as HTMLElement;
     const node = this.addNode(type);
 
@@ -538,8 +543,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (event.key === 'Delete' || event.key === 'Backspace') {
       const sel = this.selection();
       if (sel.nodes.length === 0 && sel.edges.length === 0) return;
-      this.deleteSelection();
       event.preventDefault();
+      this.deleteSelection();
       return;
     }
 
@@ -1091,12 +1096,29 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
         // Highlight port if within snap distance (40px)
         if (closestPort && closestPort.distance < PORT_SNAP_DISTANCE) {
-          this.hoveredPort = { nodeId, port: closestPort.port };
-          this.hoveredNodeId = nodeId;
-          // Snap drag point to port
-          const hoveredNode = this.internalGraph().nodes.find(n => n.id === nodeId);
-          if (hoveredNode) {
-            dragPoint = this.getPortWorldPosition(hoveredNode, closestPort.port);
+          // Determine source and target for canConnect based on which endpoint is being dragged
+          const reconnectSource = this.draggedEdge!.endpoint === 'source'
+            ? { nodeId, port: closestPort.port }
+            : { nodeId: edge.source, port: edge.sourcePort || '' };
+          const reconnectTarget = this.draggedEdge!.endpoint === 'target'
+            ? { nodeId, port: closestPort.port }
+            : { nodeId: edge.target, port: edge.targetPort || '' };
+          const canConn = invokeSyncHook(
+            this.config.hooks?.canConnect,
+            reconnectSource, reconnectTarget,
+            this.internalGraph()
+          );
+          if (canConn) {
+            this.hoveredPort = { nodeId, port: closestPort.port };
+            this.hoveredNodeId = nodeId;
+            // Snap drag point to port
+            const hoveredNode = this.internalGraph().nodes.find(n => n.id === nodeId);
+            if (hoveredNode) {
+              dragPoint = this.getPortWorldPosition(hoveredNode, closestPort.port);
+            }
+          } else {
+            this.hoveredPort = null;
+            this.hoveredNodeId = null;
           }
         } else {
           this.hoveredPort = null;
@@ -1136,11 +1158,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
           // Find and highlight closest port
           const closestPort = this.findClosestPort(hoveredNodeId, { x: mouseX, y: mouseY });
           if (closestPort && closestPort.distance < PORT_SNAP_DISTANCE) {
-            this.hoveredPort = { nodeId: hoveredNodeId, port: closestPort.port };
-            // Snap preview line to port
-            const hoveredNode = this.internalGraph().nodes.find(n => n.id === hoveredNodeId);
-            if (hoveredNode) {
-              targetPoint = this.getPortWorldPosition(hoveredNode, closestPort.port);
+            // Check canConnect hook before highlighting
+            const canConn = invokeSyncHook(
+              this.config.hooks?.canConnect,
+              { nodeId: sourceId, port: sourcePort },
+              { nodeId: hoveredNodeId, port: closestPort.port },
+              this.internalGraph()
+            );
+            if (canConn) {
+              this.hoveredPort = { nodeId: hoveredNodeId, port: closestPort.port };
+              // Snap preview line to port
+              const hoveredNode = this.internalGraph().nodes.find(n => n.id === hoveredNodeId);
+              if (hoveredNode) {
+                targetPoint = this.getPortWorldPosition(hoveredNode, closestPort.port);
+              }
+            } else {
+              this.hoveredPort = null;
             }
           } else {
             this.hoveredPort = null;
@@ -1244,55 +1277,30 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.selectionBox.set(null);
     }
 
-    // Handle drag-to-connect completion (hand tool: mousedown on port → drag → mouseup)
+    // Save pending connection data before cleanup clears state
+    let pendingConnection: { sourceNodeId: string; sourcePort: string; targetNodeId: string; targetPort: string } | null = null;
     if (this.connectingFrom && this.hoveredPort && this.hoveredPort.nodeId !== this.connectingFrom.nodeId) {
       const sourceNode = this.internalGraph().nodes.find(n => n.id === this.connectingFrom!.nodeId);
       const targetNode = this.internalGraph().nodes.find(n => n.id === this.hoveredPort!.nodeId);
       if (sourceNode && targetNode) {
-        const sourcePort = this.connectingFrom.port;
-        const targetPort = this.hoveredPort.port;
-
-        const newEdge: GraphEdge = {
-          id: this.generateEdgeId(),
-          source: this.connectingFrom.nodeId,
-          target: this.hoveredPort.nodeId,
-          sourcePort,
-          targetPort
+        pendingConnection = {
+          sourceNodeId: this.connectingFrom.nodeId,
+          sourcePort: this.connectingFrom.port,
+          targetNodeId: this.hoveredPort.nodeId,
+          targetPort: this.hoveredPort.port
         };
-
-        const graph = this.internalGraph();
-        this.internalGraph.set({
-          ...graph,
-          edges: [...graph.edges, newEdge]
-        });
-        this.emitGraphChange();
-        this.edgeAdded.emit(newEdge);
       }
     }
 
-    // Handle edge reconnection with port snapping
+    // Save pending reconnection data before cleanup clears state
+    let pendingReconnection: { edgeId: string; endpoint: 'source' | 'target'; nodeId: string; port: string } | null = null;
     if (this.draggedEdge && this.hoveredNodeId && this.hoveredPort) {
-      const graph = this.internalGraph();
-      const edgeIndex = graph.edges.findIndex(e => e.id === this.draggedEdge!.edge.id);
-
-      if (edgeIndex !== -1) {
-        const updatedEdges = [...graph.edges];
-        const updatedEdge = { ...updatedEdges[edgeIndex] };
-
-        // Update node connection and store port information (non-null: guarded by if condition)
-        if (this.draggedEdge.endpoint === 'source') {
-          updatedEdge.source = this.hoveredNodeId!;
-          updatedEdge.sourcePort = this.hoveredPort!.port;
-        } else {
-          updatedEdge.target = this.hoveredNodeId!;
-          updatedEdge.targetPort = this.hoveredPort!.port;
-        }
-
-        updatedEdges[edgeIndex] = updatedEdge;
-        this.internalGraph.set({ ...graph, edges: updatedEdges });
-        this.emitGraphChange();
-        this.edgeUpdated.emit(updatedEdge);
-      }
+      pendingReconnection = {
+        edgeId: this.draggedEdge.edge.id,
+        endpoint: this.draggedEdge.endpoint,
+        nodeId: this.hoveredNodeId,
+        port: this.hoveredPort.port
+      };
     }
 
     // Clear preview line if edge reconnection or drag-to-connect was active
@@ -1315,6 +1323,113 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.showAttachmentPoints.set(null);
     this.resizingNode = null;
     this.snapGuides.set([]);
+
+    // Complete pending connection asynchronously (after cleanup, to allow beforeEdgeAdd hook)
+    if (pendingConnection) {
+      this.completeConnection(
+        pendingConnection.sourceNodeId, pendingConnection.sourcePort,
+        pendingConnection.targetNodeId, pendingConnection.targetPort
+      );
+    }
+
+    // Complete pending reconnection asynchronously (after cleanup, to allow beforeEdgeAdd hook)
+    if (pendingReconnection) {
+      this.completeReconnection(
+        pendingReconnection.edgeId, pendingReconnection.endpoint,
+        pendingReconnection.nodeId, pendingReconnection.port
+      );
+    }
+  }
+
+  /**
+   * Complete a drag-to-connect edge creation asynchronously.
+   * Re-checks canConnect and invokes beforeEdgeAdd hook before creating the edge.
+   */
+  private async completeConnection(
+    sourceNodeId: string, sourcePort: string,
+    targetNodeId: string, targetPort: string
+  ): Promise<void> {
+    const graph = this.internalGraph();
+
+    // Re-check canConnect at drop time
+    if (!invokeSyncHook(
+      this.config.hooks?.canConnect,
+      { nodeId: sourceNodeId, port: sourcePort },
+      { nodeId: targetNodeId, port: targetPort },
+      graph
+    )) return;
+
+    // Check beforeEdgeAdd hook
+    const edgeDescriptor = { source: sourceNodeId, target: targetNodeId, sourcePort, targetPort };
+    const allowed = await invokeAsyncHook(this.config.hooks?.beforeEdgeAdd, edgeDescriptor, graph);
+    if (!allowed) return;
+
+    // Create the edge
+    const newEdge: GraphEdge = {
+      id: this.generateEdgeId(),
+      source: sourceNodeId,
+      target: targetNodeId,
+      sourcePort,
+      targetPort
+    };
+
+    const currentGraph = this.internalGraph();
+    this.internalGraph.set({
+      ...currentGraph,
+      edges: [...currentGraph.edges, newEdge]
+    });
+    this.emitGraphChange();
+    this.edgeAdded.emit(newEdge);
+  }
+
+  /**
+   * Complete an edge reconnection asynchronously.
+   * Re-checks canConnect and invokes beforeEdgeAdd hook before committing.
+   */
+  private async completeReconnection(
+    edgeId: string, endpoint: 'source' | 'target',
+    newNodeId: string, newPort: string
+  ): Promise<void> {
+    const graph = this.internalGraph();
+    const edgeIndex = graph.edges.findIndex(e => e.id === edgeId);
+    if (edgeIndex === -1) return;
+
+    const edge = graph.edges[edgeIndex];
+    const newSource = endpoint === 'source' ? newNodeId : edge.source;
+    const newSourcePort = endpoint === 'source' ? newPort : (edge.sourcePort || '');
+    const newTarget = endpoint === 'target' ? newNodeId : edge.target;
+    const newTargetPort = endpoint === 'target' ? newPort : (edge.targetPort || '');
+
+    // Re-check canConnect at drop time
+    if (!invokeSyncHook(
+      this.config.hooks?.canConnect,
+      { nodeId: newSource, port: newSourcePort },
+      { nodeId: newTarget, port: newTargetPort },
+      graph
+    )) return;
+
+    // Check beforeEdgeAdd hook with the reconnected edge descriptor
+    const edgeDescriptor = { source: newSource, target: newTarget, sourcePort: newSourcePort, targetPort: newTargetPort };
+    const allowed = await invokeAsyncHook(this.config.hooks?.beforeEdgeAdd, edgeDescriptor, graph);
+    if (!allowed) return;
+
+    // Commit reconnection
+    const currentGraph = this.internalGraph();
+    const currentEdgeIndex = currentGraph.edges.findIndex(e => e.id === edgeId);
+    if (currentEdgeIndex === -1) return;
+
+    const updatedEdges = [...currentGraph.edges];
+    updatedEdges[currentEdgeIndex] = {
+      ...updatedEdges[currentEdgeIndex],
+      source: newSource,
+      target: newTarget,
+      sourcePort: newSourcePort,
+      targetPort: newTargetPort
+    };
+
+    this.internalGraph.set({ ...currentGraph, edges: updatedEdges });
+    this.emitGraphChange();
+    this.edgeUpdated.emit(updatedEdges[currentEdgeIndex]);
   }
 
   onNodeMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1700,14 +1815,14 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   /** Cut selected nodes/edges: copy then delete. */
-  private cutSelection(): void {
+  private async cutSelection(): Promise<void> {
     this.copySelection();
     if (!this.clipboard) return;
-    this.deleteSelection();
+    await this.deleteSelection();
   }
 
   /** Delete all currently selected nodes and edges atomically. */
-  private deleteSelection(): void {
+  private async deleteSelection(): Promise<void> {
     const sel = this.selection();
     if (sel.nodes.length === 0 && sel.edges.length === 0) return;
 
@@ -1716,18 +1831,32 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const edgeIdsToRemove = new Set(sel.edges);
 
     const removedNodes = graph.nodes.filter(n => nodeIdsToRemove.has(n.id));
+
+    // Collect ALL edges being removed: explicitly selected + orphaned by node removal
     const removedEdges = graph.edges.filter(e => edgeIdsToRemove.has(e.id));
+    const additionalRemovedEdges = graph.edges.filter(e =>
+      !edgeIdsToRemove.has(e.id) &&
+      (nodeIdsToRemove.has(e.source) || nodeIdsToRemove.has(e.target))
+    );
+    const allEdgesToRemove = [...removedEdges, ...additionalRemovedEdges];
+
+    // Check beforeNodeRemove hook
+    if (removedNodes.length > 0) {
+      const nodeAllowed = await invokeAsyncHook(this.config.hooks?.beforeNodeRemove, removedNodes, graph);
+      if (!nodeAllowed) return;
+    }
+
+    // Check beforeEdgeRemove hook
+    if (allEdgesToRemove.length > 0) {
+      const edgeAllowed = await invokeAsyncHook(this.config.hooks?.beforeEdgeRemove, allEdgesToRemove, graph);
+      if (!edgeAllowed) return;
+    }
 
     const remainingNodes = graph.nodes.filter(n => !nodeIdsToRemove.has(n.id));
     const remainingEdges = graph.edges.filter(e =>
       !edgeIdsToRemove.has(e.id) &&
       !nodeIdsToRemove.has(e.source) &&
       !nodeIdsToRemove.has(e.target)
-    );
-
-    const additionalRemovedEdges = graph.edges.filter(e =>
-      !edgeIdsToRemove.has(e.id) &&
-      (nodeIdsToRemove.has(e.source) || nodeIdsToRemove.has(e.target))
     );
 
     this.internalGraph.set({ ...graph, nodes: remainingNodes, edges: remainingEdges });

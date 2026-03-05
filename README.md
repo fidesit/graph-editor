@@ -35,6 +35,7 @@ Configuration-driven visual graph editor for Angular 19+.
 - 📐 **Snap alignment guides** — Visual guide lines when dragging near other nodes' edges or center
 - 🔗 **Drag-to-connect** — Select node to reveal ports, drag from port to create edges
 - 🔵 **Multiple anchor points** — Dynamic port density per side with configurable spacing
+- 🛡️ **Lifecycle hooks** — `beforeNodeAdd`, `beforeNodeRemove`, `beforeEdgeAdd`, `beforeEdgeRemove`, `canConnect` guards that can cancel operations
 
 ## Installation
 
@@ -155,6 +156,7 @@ onGraphChange(graph: Graph): void {
 | `layout` | `LayoutConfig` | Layout algorithm (dagre, force, tree) |
 | `theme` | `ThemeConfig` | Visual theme (shadows, CSS variables) |
 | `toolbar` | `ToolbarConfig` | Top toolbar visibility and button selection |
+| `hooks` | `LifecycleHooks` | Lifecycle guards to intercept/cancel user actions |
 
 ### Node Type Definition
 
@@ -363,6 +365,81 @@ const config: GraphEditorConfig = {
 };
 ```
 
+## Lifecycle Hooks
+
+Lifecycle hooks let you intercept and cancel user-initiated graph mutations.
+Configure them via the `hooks` property on `GraphEditorConfig`.
+
+> **Note:** Hooks only apply to user-initiated actions (palette add, keyboard delete/cut, drag-to-connect).
+> Programmatic API calls (`addNode()`, `removeNode()`, `removeEdge()`) do **not** trigger hooks.
+
+### Hook Types
+
+| Hook | Sync/Async | When |
+|------|-----------|------|
+| `canConnect` | **Sync** | Every mousemove during drag-to-connect and edge reconnection |
+| `beforeNodeAdd` | Async | Before a node is added via the palette |
+| `beforeNodeRemove` | Async | Before nodes are deleted (Delete/Backspace/Cut) |
+| `beforeEdgeAdd` | Async | Before an edge is created via drag-to-connect |
+| `beforeEdgeRemove` | Async | Before edges are deleted (Delete/Backspace/Cut) |
+
+All async hooks accept a return type of `boolean | Promise<boolean>`. Returning (or resolving) `false` cancels the operation. If a hook throws an error, the operation is also cancelled.
+
+### Example
+
+```typescript
+import { GraphEditorConfig, LifecycleHooks } from '@utisha/graph-editor';
+
+const hooks: LifecycleHooks = {
+  // Sync — called on every mousemove, must return immediately
+  canConnect: (source, target, graph) => {
+    // No self-loops
+    if (source.nodeId === target.nodeId) return false;
+    // No duplicate edges
+    return !graph.edges.some(
+      e => e.source === source.nodeId && e.target === target.nodeId
+    );
+  },
+
+  // Async — can show confirmation dialogs or call a server
+  beforeNodeRemove: async (nodes, graph) => {
+    const critical = nodes.filter(n => n.type === 'start');
+    if (critical.length > 0) {
+      return confirm('Delete the Start node?');
+    }
+    return true;
+  },
+
+  beforeNodeAdd: (type, graph) => {
+    // Only one Start node allowed
+    if (type === 'start' && graph.nodes.some(n => n.type === 'start')) {
+      return false;
+    }
+    return true;
+  },
+
+  beforeEdgeAdd: (edge, graph) => true,
+  beforeEdgeRemove: (edges, graph) => true,
+};
+
+const config: GraphEditorConfig = {
+  // ...nodes, edges, canvas, etc.
+  hooks
+};
+```
+
+### Demo
+
+The [live demo](https://fidesit.github.io/graph-editor) includes a **Guards** toggle
+that enables workflow-level lifecycle hooks with toast notifications:
+
+- `canConnect` — prevents self-loops, duplicate edges, incoming to Start, outgoing from End
+- `beforeNodeAdd` — enforces max 1 Start and 1 End node (with toast notification)
+- `beforeNodeRemove` — shows `confirm()` dialog when deleting Start/End nodes
+- `beforeEdgeAdd` — limits non-Decision nodes to 2 outgoing edges (with toast)
+
+Toggle it off to compare unrestricted editing.
+
 ## Development
 
 ```bash
@@ -429,7 +506,7 @@ npm test
 
 ### Developer Experience
 
-- [ ] Event hooks — `beforeNodeRemove`, `beforeEdgeAdd` etc. that can cancel operations
+- [x] ~~Event hooks~~ — `beforeNodeRemove`, `beforeEdgeAdd`, `canConnect` lifecycle guards with async support
 - [ ] Custom toolbar items — Inject custom buttons/components into the toolbar via template projection
 - [ ] Readonly per-node — Lock individual nodes from editing while others remain editable
 - [ ] Touch/mobile support — Pinch-to-zoom, touch drag, long-press for context menu

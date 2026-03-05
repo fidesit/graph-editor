@@ -1,6 +1,7 @@
 import {Type} from '@angular/core';
 import {EdgeStyle, Graph, Position} from './graph.model';
 import {SvgIconDefinition} from './icons/workflow-icons';
+import {LifecycleHooks} from './lifecycle-hooks';
 
 export interface GraphEditorConfig {
   /** Node type definitions */
@@ -29,6 +30,9 @@ export interface GraphEditorConfig {
 
   /** Top toolbar configuration */
   toolbar?: ToolbarConfig;
+
+  /** Lifecycle hooks for intercepting user-initiated graph mutations */
+  hooks?: LifecycleHooks;
 }
 
 /**
