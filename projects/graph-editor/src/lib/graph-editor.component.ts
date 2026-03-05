@@ -643,7 +643,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.selectEdge(edge.id);
     this.edgeDoubleClick.emit(edge);
     // Start inline label editing (works for edges with or without an existing label)
-    if (!this.readonly && !this.config.interaction?.readonly) {
+    const labelEditEnabled = this.config.interaction?.edgeLabelEditOnDoubleClick !== false;
+    if (!this.readonly && !this.config.interaction?.readonly && labelEditEnabled) {
       this.startEdgeLabelEdit(edge);
     }
   }

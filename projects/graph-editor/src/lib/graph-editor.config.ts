@@ -217,6 +217,8 @@ export interface InteractionConfig {
   deleteNodes?: boolean;               // Enable node deletion (default: true)
   deleteEdges?: boolean;               // Enable edge deletion (default: true)
   multiSelect?: boolean;               // Enable multi-select (default: true)
+  /** Start inline label editing on edge double-click (default: true) */
+  edgeLabelEditOnDoubleClick?: boolean;
   contextMenu?: ContextMenuConfig;
 }
 
