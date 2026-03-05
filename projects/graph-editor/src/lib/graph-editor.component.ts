@@ -141,6 +141,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Snap guides (alignment lines shown during node drag)
   snapGuides = signal<GuideLine[]>([]);
 
+  // Edge waypoint interaction state
+  waypointPreview = signal<{ edgeId: string; position: Position } | null>(null);
+  draggingWaypoint = signal<{ edgeId: string; index: number } | null>(null);
+
   editingEdgeLabelScreenPos = computed(() => {
     const editing = this.editingEdgeLabel();
     if (!editing) return null;
@@ -906,6 +910,41 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Event handlers
   onCanvasMouseDown(event: MouseEvent): void {
+    // CTRL+click to add waypoint on edge
+    if (event.ctrlKey && this.waypointPreview()) {
+      const preview = this.waypointPreview()!;
+      const graph = this.internalGraph();
+      const edgeIndex = graph.edges.findIndex(e => e.id === preview.edgeId);
+      if (edgeIndex >= 0) {
+        const edge = graph.edges[edgeIndex];
+        const sourcePoint = this.getEdgeSourcePoint(edge);
+        const targetPoint = this.getEdgeTargetPoint(edge);
+        const existingWaypoints = edge.waypoints || [];
+        const polyline = [sourcePoint, ...existingWaypoints, targetPoint];
+
+        // Find which segment the new point falls on
+        let bestSeg = 0, bestDist = Infinity;
+        for (let i = 0; i < polyline.length - 1; i++) {
+          const d = this.pointToSegmentDistance(preview.position, polyline[i], polyline[i + 1]);
+          if (d < bestDist) { bestDist = d; bestSeg = i; }
+        }
+
+        // Insert after the start of that segment (index in waypoints array)
+        const insertIndex = bestSeg;
+        const newWaypoints = [...existingWaypoints];
+        newWaypoints.splice(insertIndex, 0, preview.position);
+
+        const updatedEdges = [...graph.edges];
+        updatedEdges[edgeIndex] = { ...edge, waypoints: newWaypoints };
+        this.internalGraph.set({ ...graph, edges: updatedEdges });
+        this.emitGraphChange();
+        this.waypointPreview.set(null);
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     // Close dropdowns on any canvas interaction
     this.layoutDropdownOpen.set(false);
     this.edgeTypeDropdownOpen.set(false);
@@ -945,6 +984,27 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   onCanvasMouseMove(event: MouseEvent): void {
+    // Waypoint dragging (before all other drag logic)
+    if (this.draggingWaypoint()) {
+      const dw = this.draggingWaypoint()!;
+      const svg = (event.currentTarget as SVGSVGElement);
+      const rect = svg.getBoundingClientRect();
+      const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
+      const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
+      const graph = this.internalGraph();
+      const edgeIndex = graph.edges.findIndex(e => e.id === dw.edgeId);
+      if (edgeIndex >= 0) {
+        const edge = graph.edges[edgeIndex];
+        const newWaypoints = [...(edge.waypoints || [])];
+        newWaypoints[dw.index] = { x: mouseX, y: mouseY };
+        const updatedEdges = [...graph.edges];
+        updatedEdges[edgeIndex] = { ...edge, waypoints: newWaypoints };
+        this.internalGraph.set({ ...graph, edges: updatedEdges });
+        this.emitGraphChange(true); // skipHistory during drag
+      }
+      return;
+    }
+
     if (this.isBoxSelecting) {
       // Update selection box
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
@@ -1204,9 +1264,58 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         this.previewLine.set({ source: sourcePoint, target: targetPoint });
       }
     }
+
+    // CTRL+hover: show waypoint preview on nearest edge segment
+    if (event.ctrlKey && !this.draggedNode && !this.isPanning && !this.resizingNode && !this.connectingFrom && !this.draggedEdge && !this.isBoxSelecting) {
+      const svg = (event.currentTarget as SVGSVGElement);
+      const rect = svg.getBoundingClientRect();
+      const mouseX = (event.clientX - rect.left - this.panX()) / this.scale();
+      const mouseY = (event.clientY - rect.top - this.panY()) / this.scale();
+      const mousePos: Position = { x: mouseX, y: mouseY };
+
+      let bestEdgeId: string | null = null;
+      let bestNearest: Position | null = null;
+      let bestDist = Infinity;
+
+      for (const edge of this.internalGraph().edges) {
+        const sourcePoint = this.getEdgeSourcePoint(edge);
+        const targetPoint = this.getEdgeTargetPoint(edge);
+        const polyline = [sourcePoint, ...(edge.waypoints || []), targetPoint];
+
+        for (let i = 0; i < polyline.length - 1; i++) {
+          const a = polyline[i];
+          const b = polyline[i + 1];
+          const dx = b.x - a.x, dy = b.y - a.y;
+          const len2 = dx * dx + dy * dy;
+          const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((mousePos.x - a.x) * dx + (mousePos.y - a.y) * dy) / len2));
+          const nearest = { x: a.x + t * dx, y: a.y + t * dy };
+          const dist = Math.sqrt((mousePos.x - nearest.x) ** 2 + (mousePos.y - nearest.y) ** 2);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestEdgeId = edge.id;
+            bestNearest = nearest;
+          }
+        }
+      }
+
+      if (bestDist < 20 && bestEdgeId && bestNearest) {
+        this.waypointPreview.set({ edgeId: bestEdgeId, position: bestNearest });
+      } else {
+        this.waypointPreview.set(null);
+      }
+    } else if (!event.ctrlKey) {
+      this.waypointPreview.set(null);
+    }
   }
 
   onCanvasMouseUp(_event: MouseEvent): void {
+    // Handle waypoint drag completion
+    if (this.draggingWaypoint()) {
+      this.historyService.push(this.internalGraph());
+      this.draggingWaypoint.set(null);
+      return;
+    }
+
     // Handle box selection completion
     if (this.isBoxSelecting) {
       const box = this.selectionBox();
@@ -1391,6 +1500,29 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (this.readonly) return;
     event.stopPropagation();
     this.draggedEdge = { edge, endpoint };
+  }
+
+  onWaypointMouseDown(event: MouseEvent, edge: GraphEdge, index: number): void {
+    if (this.readonly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.draggingWaypoint.set({ edgeId: edge.id, index });
+  }
+
+  onWaypointDoubleClick(event: MouseEvent, edge: GraphEdge, index: number): void {
+    if (this.readonly) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const graph = this.internalGraph();
+    const edgeIndex = graph.edges.findIndex(e => e.id === edge.id);
+    if (edgeIndex >= 0) {
+      const existingWaypoints = [...(graph.edges[edgeIndex].waypoints || [])];
+      existingWaypoints.splice(index, 1);
+      const updatedEdges = [...graph.edges];
+      updatedEdges[edgeIndex] = { ...updatedEdges[edgeIndex], waypoints: existingWaypoints.length > 0 ? existingWaypoints : undefined };
+      this.internalGraph.set({ ...graph, edges: updatedEdges });
+      this.emitGraphChange();
+    }
   }
 
   onResizeHandleMouseDown(event: MouseEvent, node: GraphNode): void {
@@ -1984,6 +2116,19 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const s = this.getPortWorldPosition(sourceNode, sourcePort);
     const t = this.getPortWorldPosition(targetNode, targetPort);
 
+    // If edge has manual waypoints, build path through them based on active path type
+    if (edge.waypoints && edge.waypoints.length > 0) {
+      const points = [s, ...edge.waypoints, t];
+      const pathType = this.activeEdgePathType;
+      if (pathType === 'bezier') {
+        return this.buildSmoothBezierThroughPoints(points);
+      }
+      if (pathType === 'step') {
+        return this.buildStepThroughPoints(points, sourcePort, targetPort);
+      }
+      return this.buildRoundedPolyline(points);
+    }
+
     const pathType = this.activeEdgePathType;
 
     if (pathType === 'bezier') {
@@ -2022,6 +2167,167 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
 
     return `M ${s.x},${s.y} L ${t.x},${t.y}`;
+  }
+
+  /** Build a rounded polyline path through a series of points with smooth corners. */
+  private buildRoundedPolyline(points: Position[]): string {
+    if (points.length < 2) return '';
+    if (points.length === 2) {
+      return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
+    }
+
+    const radius = 8; // Corner radius for rounded bends
+    let d = `M ${points[0].x},${points[0].y}`;
+
+    for (let i = 1; i < points.length - 1; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const next = points[i + 1];
+
+      // Vectors from current point to prev and next
+      const dx1 = prev.x - curr.x;
+      const dy1 = prev.y - curr.y;
+      const dx2 = next.x - curr.x;
+      const dy2 = next.y - curr.y;
+
+      const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+      const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+
+      if (len1 === 0 || len2 === 0) {
+        d += ` L ${curr.x},${curr.y}`;
+        continue;
+      }
+
+      // Clamp radius to half the shortest adjacent segment
+      const r = Math.min(radius, len1 / 2, len2 / 2);
+
+      // Points where the arc starts and ends
+      const startX = curr.x + (dx1 / len1) * r;
+      const startY = curr.y + (dy1 / len1) * r;
+      const endX = curr.x + (dx2 / len2) * r;
+      const endY = curr.y + (dy2 / len2) * r;
+
+      d += ` L ${startX},${startY}`;
+      d += ` Q ${curr.x},${curr.y} ${endX},${endY}`;
+    }
+
+    const last = points[points.length - 1];
+    d += ` L ${last.x},${last.y}`;
+
+    return d;
+  }
+
+  /**
+   * Build a smooth bezier curve that passes through all points using
+   * Catmull-Rom to quadratic bezier conversion.
+   *
+   * For each interior point, we compute the Catmull-Rom tangent and convert
+   * to a quadratic control point so the curve runs smoothly through the waypoint.
+   */
+  private buildSmoothBezierThroughPoints(points: Position[]): string {
+    if (points.length < 2) return '';
+    if (points.length === 2) {
+      return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
+    }
+    if (points.length === 3) {
+      // Single waypoint — one quadratic curve through the waypoint
+      const [p0, p1, p2] = points;
+      // Compute quadratic control point so the curve passes through p1:
+      // For a quadratic bezier B(0.5) = (P0 + 2*C + P2)/4 = p1
+      // => C = 2*p1 - (P0 + P2)/2
+      const cx = 2 * p1.x - (p0.x + p2.x) / 2;
+      const cy = 2 * p1.y - (p0.y + p2.y) / 2;
+      return `M ${p0.x},${p0.y} Q ${cx},${cy} ${p2.x},${p2.y}`;
+    }
+
+    // For 4+ points, use Catmull-Rom splines converted to cubic bezier segments.
+    // This guarantees the curve passes through every point smoothly.
+    const tension = 0.5; // Catmull-Rom tension
+    let d = `M ${points[0].x},${points[0].y}`;
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(0, i - 1)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(points.length - 1, i + 2)];
+
+      // Catmull-Rom tangent vectors
+      const t1x = tension * (p2.x - p0.x);
+      const t1y = tension * (p2.y - p0.y);
+      const t2x = tension * (p3.x - p1.x);
+      const t2y = tension * (p3.y - p1.y);
+
+      // Convert to cubic bezier control points
+      const cp1x = p1.x + t1x / 3;
+      const cp1y = p1.y + t1y / 3;
+      const cp2x = p2.x - t2x / 3;
+      const cp2y = p2.y - t2y / 3;
+
+      d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+
+    return d;
+  }
+
+  /**
+   * Build an orthogonal step path through waypoints.
+   * First and last segments respect the port side direction.
+   * All segments are strictly horizontal or vertical.
+   */
+  private buildStepThroughPoints(points: Position[], sourcePort: string, targetPort: string): string {
+    if (points.length < 2) return '';
+
+    const sourceSide = this.getPortSide(sourcePort);
+    const targetSide = this.getPortSide(targetPort);
+
+    // For each pair of consecutive points, route orthogonally (H then V, or V then H)
+    // The first segment's initial direction is determined by the source port side.
+    // The last segment's final direction is determined by the target port side.
+    const result: Position[] = [points[0]];
+
+    for (let i = 0; i < points.length - 1; i++) {
+      const from = points[i];
+      const to = points[i + 1];
+
+      // Skip if points are the same
+      if (from.x === to.x && from.y === to.y) continue;
+
+      // Determine whether to go horizontal-first or vertical-first
+      let horizontalFirst: boolean;
+
+      if (i === 0) {
+        // First segment: direction determined by source port
+        horizontalFirst = sourceSide === 'left' || sourceSide === 'right';
+      } else if (i === points.length - 2) {
+        // Last segment: approach target port correctly
+        // If target is top/bottom, we need to arrive vertically → go horizontal first
+        // If target is left/right, we need to arrive horizontally → go vertical first
+        horizontalFirst = targetSide === 'top' || targetSide === 'bottom';
+      } else {
+        // Middle segments: alternate based on which delta is larger
+        horizontalFirst = Math.abs(to.x - from.x) >= Math.abs(to.y - from.y);
+      }
+
+      if (from.x === to.x || from.y === to.y) {
+        // Already aligned — just go straight
+        result.push(to);
+      } else if (horizontalFirst) {
+        // Go horizontal, then vertical
+        result.push({ x: to.x, y: from.y });
+        result.push(to);
+      } else {
+        // Go vertical, then horizontal
+        result.push({ x: from.x, y: to.y });
+        result.push(to);
+      }
+    }
+
+    // Build SVG path from orthogonal points
+    let d = `M ${result[0].x},${result[0].y}`;
+    for (let i = 1; i < result.length; i++) {
+      d += ` L ${result[i].x},${result[i].y}`;
+    }
+    return d;
   }
 
   /** Active edge path type — runtime override takes precedence over theme. */

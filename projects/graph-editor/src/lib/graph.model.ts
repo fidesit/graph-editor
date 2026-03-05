@@ -42,6 +42,7 @@ export interface GraphEdge {
   label?: string;                      // Display label on the edge
   data?: Record<string, any>;          // Arbitrary user data
   metadata?: EdgeMetadata;             // Optional metadata
+  waypoints?: Position[];              // Manual waypoints for edge routing
 }
 
 /**

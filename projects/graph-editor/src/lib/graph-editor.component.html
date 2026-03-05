@@ -367,6 +367,41 @@
           }
         }
 
+        <!-- Layer 1.7: Edge waypoints -->
+        @for (edge of internalGraph().edges; track edge.id) {
+          @if (edge.waypoints?.length && selection().edges.includes(edge.id)) {
+            @for (wp of edge.waypoints; track $index) {
+              <circle
+                class="edge-waypoint"
+                [attr.cx]="wp.x"
+                [attr.cy]="wp.y"
+                r="5"
+                fill="#3b82f6"
+                stroke="white"
+                stroke-width="1.5"
+                (mousedown)="onWaypointMouseDown($event, edge, $index)"
+                (dblclick)="onWaypointDoubleClick($event, edge, $index)"
+                style="cursor: grab;"
+              />
+            }
+          }
+        }
+
+        <!-- Waypoint preview (CTRL+hover) -->
+        @if (waypointPreview(); as preview) {
+          <circle
+            class="waypoint-preview"
+            [attr.cx]="preview.position.x"
+            [attr.cy]="preview.position.y"
+            r="5"
+            fill="#3b82f6"
+            fill-opacity="0.5"
+            stroke="#3b82f6"
+            stroke-width="1.5"
+            pointer-events="none"
+          />
+        }
+
         <!-- Layer 2: Nodes -->
         @for (node of internalGraph().nodes; track node.id) {
           <g

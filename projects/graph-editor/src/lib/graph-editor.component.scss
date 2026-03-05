@@ -421,6 +421,19 @@
   color: var(--ge-toolbar-btn-active-color, white);
 }
 
+// Edge waypoints
+.edge-waypoint {
+  cursor: grab;
+  transition: r 0.15s ease;
+  &:hover {
+    r: 7;
+  }
+}
+
+.waypoint-preview {
+  pointer-events: none;
+}
+
 // Resize handle
 .resize-handle {
   cursor: se-resize;
