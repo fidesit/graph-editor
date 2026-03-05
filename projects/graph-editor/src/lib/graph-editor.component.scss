@@ -190,6 +190,21 @@
   font-size: 18px;
 }
 
+.palette-item:hover {
+  background: var(--ge-toolbar-btn-hover-bg, #f9fafb);
+  border-color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
+  color: var(--ge-toolbar-btn-hover-accent, #3b82f6);
+}
+
+.palette-item:active {
+  transform: scale(0.95);
+}
+
+.palette-icon-svg {
+  width: 20px;
+  height: 20px;
+}
+
 .graph-canvas-wrapper {
   flex: 1;
   position: relative;
@@ -219,6 +234,17 @@
   user-select: none;
   -webkit-user-select: none;
   transition: transform 0.1s ease-out;
+}
+
+// Fly-in entrance animation when added from palette
+@keyframes node-fly-in {
+  0% { opacity: 0; }
+  50% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+.graph-node.fly-in {
+  animation: node-fly-in 0.35s ease-out forwards;
 }
 
 .graph-node:hover .node-bg {

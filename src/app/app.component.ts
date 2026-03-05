@@ -1,73 +1,109 @@
-import { Component, signal, viewChild, computed } from '@angular/core';
+import { Component, signal, viewChild, computed, AfterViewInit } from '@angular/core';
 import { JsonPipe } from '@angular/common';
 import { GraphEditorComponent, Graph, GraphEditorConfig, NodeTypeDefinition, ContextMenuEvent, SvgIconDefinition, ValidationResult, ValidationRule, ValidationError, ThemeConfig } from '@utisha/graph-editor';
 
 /**
- * Demo icons - simple geometric shapes for demonstration.
- * In production, consumers would provide their own branded icons.
+ * SVG path data for demo icons.
+ * Stroke color is applied per-theme via buildIcons().
  */
-const DEMO_ICONS: Record<string, SvgIconDefinition> = {
+const ICON_PATHS: Record<string, { viewBox: string; path: string }> = {
   process: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#6366f1',
-    strokeWidth: 1.75,
     path: `M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z
            M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z`
   },
   decision: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#8b5cf6',
-    strokeWidth: 1.75,
     path: `M12 3L21 12L12 21L3 12L12 3Z
            M12 8v4
            M12 16h.01`
   },
   start: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#22c55e',
-    strokeWidth: 1.75,
     path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z
            M10 8l6 4-6 4V8Z`
   },
   end: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#ef4444',
-    strokeWidth: 1.75,
     path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10Z
            M8 8h8v8H8V8Z`
   },
   database: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#0ea5e9',
-    strokeWidth: 1.75,
     path: `M12 5c4.418 0 8 1.12 8 2.5v9c0 1.38-3.582 2.5-8 2.5s-8-1.12-8-2.5v-9C4 6.12 7.582 5 12 5Z
            M4 7.5c0 1.38 3.582 2.5 8 2.5s8-1.12 8-2.5
            M4 12c0 1.38 3.582 2.5 8 2.5s8-1.12 8-2.5`
   },
   api: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#f59e0b',
-    strokeWidth: 1.75,
     path: `M4 12h4l2-6 4 12 2-6h4
            M2 12h2
            M20 12h2`
   },
   approval: {
     viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#14b8a6',
-    strokeWidth: 1.75,
     path: `M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2
            M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z
            M16 11l2 2 4-4`
   }
 };
+
+/** Build icons with per-type stroke colors matching a theme palette. */
+function buildIcons(colors: Record<string, string>, strokeWidth = 1.75): Record<string, SvgIconDefinition> {
+  const icons: Record<string, SvgIconDefinition> = {};
+  for (const [key, data] of Object.entries(ICON_PATHS)) {
+    icons[key] = { viewBox: data.viewBox, fill: 'none', stroke: colors[key] ?? '#64748b', strokeWidth, path: data.path };
+  }
+  return icons;
+}
+
+// ── Per-theme icon color palettes ──────────────────────────────────
+// Each theme gets its own icon stroke colors that sit naturally within
+// the theme's overall color family.
+
+/** Corporate — muted blues and grays, professional and understated */
+const ICONS_CORPORATE = buildIcons({
+  process:  '#3b82f6', // blue-500
+  decision: '#6366f1', // indigo-500
+  start:    '#22c55e', // green-500
+  end:      '#ef4444', // red-500
+  database: '#0ea5e9', // sky-500
+  api:      '#f59e0b', // amber-500
+  approval: '#8b5cf6', // violet-500
+});
+
+/** Emerald — greens and teals, fresh organic feel */
+const ICONS_EMERALD = buildIcons({
+  process:  '#059669', // emerald-600
+  decision: '#0d9488', // teal-600
+  start:    '#16a34a', // green-600
+  end:      '#e11d48', // rose-600
+  database: '#0891b2', // cyan-600
+  api:      '#d97706', // amber-600
+  approval: '#0e7490', // cyan-700
+});
+
+/** Blueprint — indigo/violet spectrum, technical precision */
+const ICONS_BLUEPRINT = buildIcons({
+  process:  '#4f46e5', // indigo-600
+  decision: '#7c3aed', // violet-600
+  start:    '#059669', // emerald-600
+  end:      '#dc2626', // red-600
+  database: '#2563eb', // blue-600
+  api:      '#c026d3', // fuchsia-600
+  approval: '#4338ca', // indigo-700
+}, 2);
+
+/** Midnight — high-contrast neons on dark, terminal/devops */
+const ICONS_MIDNIGHT = buildIcons({
+  process:  '#38bdf8', // sky-400
+  decision: '#a78bfa', // violet-400
+  start:    '#4ade80', // green-400
+  end:      '#fb7185', // rose-400
+  database: '#22d3ee', // cyan-400
+  api:      '#fbbf24', // amber-400
+  approval: '#2dd4bf', // teal-400
+}, 1.5);
 
 /**
  * Demo validation rules - basic workflow validation.
@@ -146,10 +182,10 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
           <div class="theme-group">
             <span class="theme-label">Theme</span>
             <select class="theme-select" (change)="onThemeChange($event)" [value]="currentTheme()">
-              <option value="default">Default (Straight)</option>
-              <option value="compact">Compact (Bezier + Dot Grid)</option>
-              <option value="detailed">Detailed (Step + Type Styles)</option>
-              <option value="minimal">Dark (Bezier + Dot Grid)</option>
+              <option value="minimal">Midnight</option>
+              <option value="default">Corporate</option>
+              <option value="compact">Emerald</option>
+              <option value="detailed">Blueprint</option>
             </select>
           </div>
           <label class="readonly-toggle">
@@ -1027,120 +1063,224 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
     }
   `]
 })
-export class AppComponent {
-  // Theme presets — each showcases different ThemeConfig capabilities
-  private readonly themes: Record<string, { nodeSize: { width: number; height: number }; gridSize: number; theme: ThemeConfig }> = {
+export class AppComponent implements AfterViewInit {
+  // Theme presets — four distinct institutional looks
+  private readonly themes: Record<string, { nodeSize: { width: number; height: number }; gridSize: number; icons: Record<string, SvgIconDefinition>; theme: ThemeConfig }> = {
+    // ── Corporate ─────────────────────────────────────────────────────
+    // Clean white, trustworthy blue, line grid, straight edges, system font.
     default: {
       nodeSize: { width: 180, height: 80 },
       gridSize: 20,
+      icons: ICONS_CORPORATE,
       theme: {
         shadows: true,
-        edge: { pathType: 'straight' },
-      }
-    },
-    compact: {
-      nodeSize: { width: 140, height: 60 },
-      gridSize: 15,
-      theme: {
-        shadows: false,
-        canvas: { background: '#f0f4f8', gridType: 'dot', gridColor: '#94a3b8' },
+        canvas: { background: '#f8fafc', gridType: 'line', gridColor: '#e2e8f0' },
         node: {
           background: '#ffffff',
           borderColor: '#cbd5e1',
-          borderRadius: 8,
-          borderWidth: 1,
-          selectedBorderColor: '#6366f1',
-          labelColor: '#334155',
-        },
-        edge: { stroke: '#64748b', pathType: 'bezier', selectedStroke: '#6366f1', markerColor: '#64748b', selectedMarkerColor: '#6366f1' },
-        selection: { color: '#6366f1' },
-        toolbar: {
-          buttonHoverAccent: '#6366f1',
-          buttonActiveBackground: '#6366f1',
-        },
-        port: { fill: '#64748b', hoverFill: '#6366f1' },
-      }
-    },
-    detailed: {
-      nodeSize: { width: 220, height: 100 },
-      gridSize: 25,
-      theme: {
-        shadows: true,
-        canvas: { background: '#fafaf9', gridType: 'line', gridColor: '#e7e5e4' },
-        node: {
-          background: '#fffbeb',
-          borderColor: '#fcd34d',
-          borderWidth: 2,
-          borderRadius: 16,
-          selectedBorderColor: '#f59e0b',
-          shadowColor: 'rgba(245, 158, 11, 0.12)',
-          labelColor: '#78350f',
+          borderWidth: 1.5,
+          borderRadius: 10,
+          selectedBorderColor: '#2563eb',
+          selectedBorderWidth: 2.5,
+          shadowColor: 'rgba(15, 23, 42, 0.06)',
+          labelColor: '#1e293b',
+          labelFont: 'system-ui, -apple-system, "Segoe UI", sans-serif',
           typeStyles: {
-            'start': { background: '#ecfdf5', borderColor: '#6ee7b7', accentColor: '#059669' },
-            'end': { background: '#fef2f2', borderColor: '#fca5a5', accentColor: '#dc2626' },
-            'decision': { background: '#f5f3ff', borderColor: '#c4b5fd', accentColor: '#7c3aed' },
-            'database': { background: '#eff6ff', borderColor: '#93c5fd', accentColor: '#2563eb' },
+            'start':    { background: '#f0fdf4', borderColor: '#bbf7d0', accentColor: '#22c55e', accentTextColor: '#ffffff' },
+            'end':      { background: '#fef2f2', borderColor: '#fecaca', accentColor: '#ef4444', accentTextColor: '#ffffff' },
+            'process':  { background: '#eff6ff', borderColor: '#bfdbfe', accentColor: '#3b82f6', accentTextColor: '#ffffff' },
+            'decision': { background: '#eef2ff', borderColor: '#c7d2fe', accentColor: '#6366f1', accentTextColor: '#ffffff' },
+            'database': { background: '#f0f9ff', borderColor: '#bae6fd', accentColor: '#0ea5e9', accentTextColor: '#ffffff' },
+            'api':      { background: '#fffbeb', borderColor: '#fde68a', accentColor: '#f59e0b', accentTextColor: '#ffffff' },
+            'approval': { background: '#f5f3ff', borderColor: '#ddd6fe', accentColor: '#8b5cf6', accentTextColor: '#ffffff' },
           },
         },
-        edge: { stroke: '#d97706', strokeWidth: 2.5, pathType: 'step', selectedStroke: '#f59e0b', markerColor: '#d97706', selectedMarkerColor: '#f59e0b' },
-        selection: { color: '#f59e0b', boxFill: 'rgba(245, 158, 11, 0.1)', boxStroke: '#f59e0b' },
-        font: { family: 'Georgia, "Times New Roman", serif' },
+        edge: {
+          stroke: '#94a3b8', strokeWidth: 1.75, pathType: 'straight',
+          selectedStroke: '#2563eb', markerColor: '#94a3b8', selectedMarkerColor: '#2563eb',
+          label: { color: '#475569', background: 'rgba(248, 250, 252, 0.92)', borderColor: '#e2e8f0', borderWidth: 1 },
+        },
+        selection: { color: '#2563eb', boxFill: 'rgba(37, 99, 235, 0.08)', boxStroke: '#2563eb' },
+        port: { fill: '#94a3b8', hoverFill: '#2563eb' },
+        font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif' },
         toolbar: {
-          background: 'rgba(255, 251, 235, 0.95)',
-          buttonBorderColor: '#fcd34d',
-          buttonTextColor: '#78350f',
-          buttonHoverAccent: '#f59e0b',
-          buttonActiveBackground: '#f59e0b',
-          dividerColor: '#fcd34d',
+          background: 'rgba(255, 255, 255, 0.97)',
+          shadow: '0 1px 4px rgba(15, 23, 42, 0.08)',
+          buttonBackground: '#ffffff',
+          buttonBorderColor: '#e2e8f0',
+          buttonTextColor: '#475569',
+          buttonHoverBackground: '#f1f5f9',
+          buttonHoverAccent: '#2563eb',
+          buttonActiveBackground: '#2563eb',
+          buttonActiveTextColor: '#ffffff',
+          dividerColor: '#e2e8f0',
         },
       }
     },
+
+    // ── Emerald ───────────────────────────────────────────────────────
+    // Mint canvas, teal-green accents, dot grid, bezier curves, compact.
+    compact: {
+      nodeSize: { width: 140, height: 60 },
+      gridSize: 16,
+      icons: ICONS_EMERALD,
+      theme: {
+        shadows: false,
+        canvas: { background: '#f0fdf4', gridType: 'dot', gridColor: '#bbf7d0' },
+        node: {
+          background: '#ffffff',
+          borderColor: '#a7f3d0',
+          borderRadius: 8,
+          borderWidth: 1,
+          selectedBorderColor: '#059669',
+          shadowColor: 'rgba(5, 150, 105, 0.06)',
+          labelColor: '#064e3b',
+          typeStyles: {
+            'start':    { background: '#ecfdf5', borderColor: '#6ee7b7', accentColor: '#16a34a', accentTextColor: '#ffffff' },
+            'end':      { background: '#fff1f2', borderColor: '#fda4af', accentColor: '#e11d48', accentTextColor: '#ffffff' },
+            'process':  { background: '#f0fdfa', borderColor: '#99f6e4', accentColor: '#0d9488', accentTextColor: '#ffffff' },
+            'decision': { background: '#f0fdfa', borderColor: '#5eead4', accentColor: '#0d9488', accentTextColor: '#ffffff' },
+            'database': { background: '#ecfeff', borderColor: '#a5f3fc', accentColor: '#0891b2', accentTextColor: '#ffffff' },
+            'api':      { background: '#fffbeb', borderColor: '#fde68a', accentColor: '#d97706', accentTextColor: '#ffffff' },
+            'approval': { background: '#ecfeff', borderColor: '#67e8f9', accentColor: '#0e7490', accentTextColor: '#ffffff' },
+          },
+        },
+        edge: {
+          stroke: '#86efac', strokeWidth: 1.5, pathType: 'bezier',
+          selectedStroke: '#059669', markerColor: '#86efac', selectedMarkerColor: '#059669',
+          label: { color: '#065f46', background: 'rgba(240, 253, 244, 0.92)', borderColor: '#a7f3d0', borderWidth: 1 },
+        },
+        selection: { color: '#059669', boxFill: 'rgba(5, 150, 105, 0.08)', boxStroke: '#059669' },
+        port: { fill: '#6ee7b7', hoverFill: '#059669' },
+        font: { family: '"Inter", "Helvetica Neue", Arial, sans-serif' },
+        toolbar: {
+          background: 'rgba(255, 255, 255, 0.96)',
+          shadow: '0 1px 6px rgba(5, 150, 105, 0.08)',
+          buttonBackground: '#ffffff',
+          buttonBorderColor: '#d1fae5',
+          buttonTextColor: '#065f46',
+          buttonHoverBackground: '#ecfdf5',
+          buttonHoverAccent: '#059669',
+          buttonActiveBackground: '#059669',
+          buttonActiveTextColor: '#ffffff',
+          dividerColor: '#d1fae5',
+        },
+      }
+    },
+
+    // ── Blueprint ─────────────────────────────────────────────────────
+    // Lavender canvas, deep indigo, line grid, step routing, larger nodes.
+    detailed: {
+      nodeSize: { width: 220, height: 100 },
+      gridSize: 24,
+      icons: ICONS_BLUEPRINT,
+      theme: {
+        shadows: true,
+        canvas: { background: '#eef2ff', gridType: 'line', gridColor: '#c7d2fe' },
+        node: {
+          background: '#ffffff',
+          borderColor: '#a5b4fc',
+          borderWidth: 2,
+          borderRadius: 4,
+          selectedBorderColor: '#4338ca',
+          selectedBorderWidth: 2.5,
+          shadowColor: 'rgba(67, 56, 202, 0.10)',
+          labelColor: '#312e81',
+          labelFont: '"Merriweather Sans", "Georgia", system-ui, serif',
+          typeStyles: {
+            'start':    { background: '#f0fdf4', borderColor: '#86efac', accentColor: '#059669', accentTextColor: '#ffffff' },
+            'end':      { background: '#fef2f2', borderColor: '#fca5a5', accentColor: '#dc2626', accentTextColor: '#ffffff' },
+            'process':  { background: '#eef2ff', borderColor: '#a5b4fc', accentColor: '#4f46e5', accentTextColor: '#ffffff' },
+            'decision': { background: '#faf5ff', borderColor: '#d8b4fe', accentColor: '#7c3aed', accentTextColor: '#ffffff' },
+            'database': { background: '#eff6ff', borderColor: '#93c5fd', accentColor: '#2563eb', accentTextColor: '#ffffff' },
+            'api':      { background: '#fdf4ff', borderColor: '#f0abfc', accentColor: '#c026d3', accentTextColor: '#ffffff' },
+            'approval': { background: '#eef2ff', borderColor: '#c7d2fe', accentColor: '#4338ca', accentTextColor: '#ffffff' },
+          },
+        },
+        edge: {
+          stroke: '#818cf8', strokeWidth: 2, pathType: 'step',
+          selectedStroke: '#4338ca', markerColor: '#818cf8', selectedMarkerColor: '#4338ca',
+          label: { color: '#3730a3', background: 'rgba(238, 242, 255, 0.92)', borderColor: '#a5b4fc', borderWidth: 1 },
+        },
+        selection: { color: '#4338ca', boxFill: 'rgba(67, 56, 202, 0.08)', boxStroke: '#4338ca' },
+        port: { fill: '#818cf8', hoverFill: '#4338ca' },
+        font: { family: '"Merriweather Sans", "Georgia", system-ui, serif' },
+        toolbar: {
+          background: 'rgba(238, 242, 255, 0.96)',
+          shadow: '0 2px 8px rgba(67, 56, 202, 0.10)',
+          buttonBackground: '#ffffff',
+          buttonBorderColor: '#c7d2fe',
+          buttonTextColor: '#3730a3',
+          buttonHoverBackground: '#e0e7ff',
+          buttonHoverAccent: '#4338ca',
+          buttonActiveBackground: '#4338ca',
+          buttonActiveTextColor: '#ffffff',
+          dividerColor: '#c7d2fe',
+        },
+      }
+    },
+
+    // ── Midnight ──────────────────────────────────────────────────────
+    // Deep navy, cyan accent, dot grid, bezier curves, monospace font.
     minimal: {
       nodeSize: { width: 160, height: 70 },
       gridSize: 20,
+      icons: ICONS_MIDNIGHT,
       theme: {
         shadows: false,
-        canvas: { background: '#18181b', gridType: 'dot', gridColor: '#3f3f46' },
+        canvas: { background: '#0f172a', gridType: 'dot', gridColor: '#1e293b' },
         node: {
-          background: '#27272a',
-          borderColor: '#3f3f46',
+          background: '#1e293b',
+          borderColor: '#334155',
           borderWidth: 1,
           borderRadius: 6,
-          selectedBorderColor: '#22d3ee',
-          labelColor: '#e4e4e7',
+          selectedBorderColor: '#06b6d4',
+          labelColor: '#e2e8f0',
+          typeStyles: {
+            'start':    { background: '#1a2e1e', borderColor: '#166534', accentColor: '#4ade80', accentTextColor: '#052e16' },
+            'end':      { background: '#2e1a1e', borderColor: '#9f1239', accentColor: '#fb7185', accentTextColor: '#1c0412' },
+            'process':  { background: '#172554', borderColor: '#1e40af', accentColor: '#38bdf8', accentTextColor: '#0c1a3d' },
+            'decision': { background: '#2e1065', borderColor: '#5b21b6', accentColor: '#a78bfa', accentTextColor: '#1a0536' },
+            'database': { background: '#164e63', borderColor: '#155e75', accentColor: '#22d3ee', accentTextColor: '#083344' },
+            'api':      { background: '#422006', borderColor: '#92400e', accentColor: '#fbbf24', accentTextColor: '#1c0a00' },
+            'approval': { background: '#134e4a', borderColor: '#115e59', accentColor: '#2dd4bf', accentTextColor: '#042f2e' },
+          },
         },
-        edge: { stroke: '#52525b', pathType: 'bezier', selectedStroke: '#22d3ee', markerColor: '#52525b', selectedMarkerColor: '#22d3ee' },
-        selection: { color: '#22d3ee', boxFill: 'rgba(34, 211, 238, 0.1)', boxStroke: '#22d3ee' },
-        port: { fill: '#52525b', hoverFill: '#22d3ee', stroke: '#18181b' },
-        font: { family: '"SF Mono", Monaco, Consolas, monospace' },
+        edge: {
+          stroke: '#475569', strokeWidth: 1.5, pathType: 'bezier',
+          selectedStroke: '#06b6d4', markerColor: '#475569', selectedMarkerColor: '#06b6d4',
+          label: { color: '#94a3b8', background: 'rgba(30, 41, 59, 0.92)', borderColor: '#334155', borderWidth: 1 },
+        },
+        selection: { color: '#06b6d4', boxFill: 'rgba(6, 182, 212, 0.10)', boxStroke: '#06b6d4' },
+        port: { fill: '#475569', hoverFill: '#06b6d4', stroke: '#0f172a' },
+        font: { family: '"JetBrains Mono", "SF Mono", "Fira Code", Consolas, monospace' },
         toolbar: {
-          background: 'rgba(39, 39, 42, 0.95)',
-          shadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
-          buttonBackground: '#3f3f46',
-          buttonBorderColor: '#52525b',
-          buttonTextColor: '#a1a1aa',
-          buttonHoverBackground: '#52525b',
-          buttonHoverAccent: '#22d3ee',
-          buttonActiveBackground: '#22d3ee',
-          buttonActiveTextColor: '#18181b',
-          dividerColor: '#52525b',
+          background: 'rgba(30, 41, 59, 0.96)',
+          shadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
+          buttonBackground: '#1e293b',
+          buttonBorderColor: '#334155',
+          buttonTextColor: '#94a3b8',
+          buttonHoverBackground: '#334155',
+          buttonHoverAccent: '#06b6d4',
+          buttonActiveBackground: '#06b6d4',
+          buttonActiveTextColor: '#0f172a',
+          dividerColor: '#334155',
         },
       }
     }
   };
 
-  currentTheme = signal<string>('default');
+  currentTheme = signal<string>('minimal');
 
-  // Base node types with demo icons
-  // Consumers would provide their own branded icons matching their design system
-  private readonly nodeTypes: Omit<NodeTypeDefinition, 'size'>[] = [
-    { type: 'process', label: 'Process', iconSvg: DEMO_ICONS['process'], component: null as any, defaultData: { name: 'New Process' } },
-    { type: 'decision', label: 'Decision', iconSvg: DEMO_ICONS['decision'], component: null as any, defaultData: { name: 'Decision' } },
-    { type: 'start', label: 'Start', iconSvg: DEMO_ICONS['start'], component: null as any, defaultData: { name: 'Start' } },
-    { type: 'end', label: 'End', iconSvg: DEMO_ICONS['end'], component: null as any, defaultData: { name: 'End' } },
-    { type: 'database', label: 'Database', iconSvg: DEMO_ICONS['database'], component: null as any, defaultData: { name: 'Database' } },
-    { type: 'api', label: 'API', iconSvg: DEMO_ICONS['api'], component: null as any, defaultData: { name: 'API Call' } },
-    { type: 'approval', label: 'Approval', iconSvg: DEMO_ICONS['approval'], component: null as any, defaultData: { name: 'Review' } }
+  // Base node types — icons are injected per-theme in editorConfig computed
+  private readonly nodeTypes: Omit<NodeTypeDefinition, 'size' | 'iconSvg'>[] = [
+    { type: 'process', label: 'Process', component: null as any, defaultData: { name: 'New Process' } },
+    { type: 'decision', label: 'Decision', component: null as any, defaultData: { name: 'Decision' } },
+    { type: 'start', label: 'Start', component: null as any, defaultData: { name: 'Start' } },
+    { type: 'end', label: 'End', component: null as any, defaultData: { name: 'End' } },
+    { type: 'database', label: 'Database', component: null as any, defaultData: { name: 'Database' } },
+    { type: 'api', label: 'API', component: null as any, defaultData: { name: 'API Call' } },
+    { type: 'approval', label: 'Approval', component: null as any, defaultData: { name: 'Review' } }
   ];
 
   // Computed config based on theme
@@ -1149,7 +1289,7 @@ export class AppComponent {
     const readonly = this.readonlyMode();
     return {
       nodes: {
-        types: this.nodeTypes.map(t => ({ ...t, size: preset.nodeSize })),
+        types: this.nodeTypes.map(t => ({ ...t, size: preset.nodeSize, iconSvg: preset.icons[t.type] })),
         defaultSize: preset.nodeSize,
         iconPosition: 'top-left'
       },
@@ -1191,6 +1331,15 @@ export class AppComponent {
   });
 
   private editor = viewChild.required<GraphEditorComponent>('editor');
+
+  ngAfterViewInit(): void {
+    // Auto-layout vertically and fit on initial load
+    setTimeout(async () => {
+      await this.editor().applyLayout('dagre-tb');
+      this.editor().fitToScreen();
+    });
+  }
+
   showHelp = signal(false);
   readonlyMode = signal(false);
   contextMenu = signal<ContextMenuEvent | null>(null);

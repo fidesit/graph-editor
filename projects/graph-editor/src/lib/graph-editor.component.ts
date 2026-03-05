@@ -128,7 +128,15 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Layout algorithm dropdown
   layoutDropdownOpen = signal(false);
-  selectedLayoutAlgorithm = signal<'dagre-tb' | 'dagre-lr' | 'force' | 'tree'>('dagre-tb');
+  selectedLayoutAlgorithm = signal<'dagre-tb' | 'dagre-lr' | 'compact'>('dagre-tb');
+
+  // Edge path type dropdown
+  edgeTypeDropdownOpen = signal(false);
+  /** Runtime override for edge path type. `null` = use theme default. */
+  private edgePathTypeOverride = signal<'straight' | 'bezier' | 'step' | null>(null);
+
+  // Fly-in animation state
+  flyInNodeId = signal<string | null>(null);
 
   // Snap guides (alignment lines shown during node drag)
   snapGuides = signal<GuideLine[]>([]);
@@ -220,6 +228,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (changes['config']) {
       this.resolvedTheme = resolveTheme(this.config.theme);
       applyThemeCssProperties(this.hostEl.nativeElement, this.resolvedTheme, this.config.theme?.variables);
+      // Reset edge path type override so theme default takes over
+      this.edgePathTypeOverride.set(null);
     }
   }
 
@@ -262,6 +272,64 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     this.nodeAdded.emit(newNode);
     this.switchTool('hand');
     return newNode;
+  }
+
+  /** Add node triggered from palette button — plays fly-in animation from the button to the canvas. */
+  addNodeFromPalette(type: string, event: MouseEvent): void {
+    const btn = (event.target as HTMLElement).closest('.palette-item') as HTMLElement;
+    const node = this.addNode(type);
+
+    if (!btn || !this.canvasSvgRef) return;
+
+    // -- Source rect (palette button) --
+    const btnRect = btn.getBoundingClientRect();
+    const containerEl = this.hostEl.nativeElement.querySelector('.graph-editor-container') as HTMLElement;
+    if (!containerEl) return;
+    const containerRect = containerEl.getBoundingClientRect();
+
+    // -- Target position (node centre → screen coords) --
+    const nodeSize = this.getNodeSize(node);
+    const nodeCx = node.position.x + nodeSize.width / 2;
+    const nodeCy = node.position.y + nodeSize.height / 2;
+    const screenX = containerRect.left + nodeCx * this.scale() + this.panX();
+    const screenY = containerRect.top + nodeCy * this.scale() + this.panY();
+
+    // -- Create ghost element --
+    const ghost = document.createElement('div');
+    ghost.className = 'ge-fly-ghost';
+    ghost.style.cssText = `
+      position: fixed;
+      left: ${btnRect.left + btnRect.width / 2}px;
+      top: ${btnRect.top + btnRect.height / 2}px;
+      width: ${btnRect.width}px;
+      height: ${btnRect.height}px;
+      border-radius: ${getComputedStyle(btn).borderRadius};
+      background: ${getComputedStyle(btn).background};
+      border: ${getComputedStyle(btn).border};
+      opacity: 0.85;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%) scale(1);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.15, 1);
+    `;
+    document.body.appendChild(ghost);
+
+    // Mark node for CSS entrance animation
+    this.flyInNodeId.set(node.id);
+
+    // Trigger transition on next frame
+    requestAnimationFrame(() => {
+      ghost.style.left = `${screenX}px`;
+      ghost.style.top = `${screenY}px`;
+      ghost.style.transform = `translate(-50%, -50%) scale(${this.scale()})`;
+      ghost.style.opacity = '0';
+    });
+
+    // Cleanup ghost + animation class
+    setTimeout(() => {
+      ghost.remove();
+      this.flyInNodeId.set(null);
+    }, 400);
   }
 
   removeNode(nodeId: string, removeAttachedEdges = false): void {
@@ -370,8 +438,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     // Escape: close layout dropdown, cancel edge label editing, cancel line drawing, clear selection
     if (event.key === 'Escape') {
-      if (this.layoutDropdownOpen()) {
+      if (this.layoutDropdownOpen() || this.edgeTypeDropdownOpen()) {
         this.layoutDropdownOpen.set(false);
+        this.edgeTypeDropdownOpen.set(false);
         event.preventDefault();
         return;
       }
@@ -504,18 +573,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         updatedNodes[idx] = { ...updatedNodes[idx], position: { x: pos.x + dx, y: pos.y + dy } };
       }
 
-      // Recalculate edge ports for moved nodes (atomic update)
+      // Recalculate edge ports for moved nodes (with conflict avoidance for parallel edges)
       const movedIds = new Set(sel.nodes);
-      const updatedEdges = graph.edges.map(edge => {
-        if (!movedIds.has(edge.source) && !movedIds.has(edge.target)) return edge;
-        const sourceNode = updatedNodes.find(n => n.id === edge.source);
-        const targetNode = updatedNodes.find(n => n.id === edge.target);
-        if (!sourceNode || !targetNode) return edge;
-        const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-        const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-        if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) return edge;
-        return { ...edge, sourcePort: newSourcePort, targetPort: newTargetPort };
-      });
+      const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+        graph.edges, updatedNodes,
+        edge => movedIds.has(edge.source) || movedIds.has(edge.target)
+      );
 
       this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
       this.emitGraphChange();
@@ -627,13 +690,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     switch (algo) {
       case 'dagre-tb': updatedNodes = await this.layoutDagre(graph, 'TB'); break;
       case 'dagre-lr': updatedNodes = await this.layoutDagre(graph, 'LR'); break;
-      case 'force':    updatedNodes = this.layoutForce(graph); break;
-      case 'tree':     updatedNodes = this.layoutTree(graph); break;
+      case 'compact':  updatedNodes = await this.layoutCompact(graph); break;
       default: return;
     }
 
     if (algorithmOverride) {
-      this.selectedLayoutAlgorithm.set(algo as 'dagre-tb' | 'dagre-lr' | 'force' | 'tree');
+      this.selectedLayoutAlgorithm.set(algo as 'dagre-tb' | 'dagre-lr' | 'compact');
     }
 
     this.applyLayoutPositions(graph, updatedNodes);
@@ -679,197 +741,75 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     });
   }
 
-  /** Force-directed layout (pure JS, no external deps) */
-  private layoutForce(graph: Graph): GraphNode[] {
-    const opts = this.config.layout?.options;
-    const totalIterations = opts?.iterations ?? 300;
-    const repulsion = opts?.repulsionStrength ?? 500;
-    const attraction = opts?.attractionStrength ?? 0.01;
+  /** Compact layout — grid packing via topological order to minimize total area */
+  private async layoutCompact(graph: Graph): Promise<GraphNode[]> {
+    if (graph.nodes.length === 0) return [];
 
-    // Initialize positions and sizes
-    const positions = new Map<string, { x: number; y: number }>();
-    const sizes = new Map<string, { width: number; height: number }>();
-    for (const node of graph.nodes) {
-      positions.set(node.id, { x: node.position.x, y: node.position.y });
-      sizes.set(node.id, this.getNodeSize(node));
-    }
-
-    const nodeIds = graph.nodes.map(n => n.id);
-
-    for (let iter = 0; iter < totalIterations; iter++) {
-      const forces = new Map<string, { fx: number; fy: number }>();
-      for (const id of nodeIds) forces.set(id, { fx: 0, fy: 0 });
-
-      // Repulsive forces between all node pairs
-      for (let a = 0; a < nodeIds.length; a++) {
-        for (let b = a + 1; b < nodeIds.length; b++) {
-          const idA = nodeIds[a], idB = nodeIds[b];
-          const posA = positions.get(idA)!;
-          const posB = positions.get(idB)!;
-          const sA = sizes.get(idA)!;
-          const sB = sizes.get(idB)!;
-          const dx = posA.x - posB.x;
-          const dy = posA.y - posB.y;
-          const minDist = (sA.width + sB.width) / 2 + 20;
-          const dist = Math.max(Math.sqrt(dx * dx + dy * dy), minDist * 0.1);
-          const force = repulsion / (dist * dist);
-          const fx = (dx / dist) * force;
-          const fy = (dy / dist) * force;
-          forces.get(idA)!.fx += fx;
-          forces.get(idA)!.fy += fy;
-          forces.get(idB)!.fx -= fx;
-          forces.get(idB)!.fy -= fy;
-        }
-      }
-
-      // Attractive forces along edges
-      for (const edge of graph.edges) {
-        const posS = positions.get(edge.source);
-        const posT = positions.get(edge.target);
-        if (!posS || !posT) continue;
-        const dx = posS.x - posT.x;
-        const dy = posS.y - posT.y;
-        const fx = dx * attraction;
-        const fy = dy * attraction;
-        const fS = forces.get(edge.source);
-        const fT = forces.get(edge.target);
-        if (fS) { fS.fx -= fx; fS.fy -= fy; }
-        if (fT) { fT.fx += fx; fT.fy += fy; }
-      }
-
-      // Apply forces with cooling
-      const cooling = 1 - iter / totalIterations;
-      for (const id of nodeIds) {
-        const pos = positions.get(id)!;
-        const f = forces.get(id)!;
-        pos.x += f.fx * cooling;
-        pos.y += f.fy * cooling;
-      }
-    }
-
-    return graph.nodes.map(node => ({
-      ...node,
-      position: { ...positions.get(node.id)! },
-    }));
-  }
-
-  /** Tree layout (BFS-based, handles forests and cycles) */
-  private layoutTree(graph: Graph): GraphNode[] {
-    const opts = this.config.layout?.options;
-    const levelSep = opts?.levelSeparation ?? 120;
-    const siblingSp = opts?.siblingSpacing ?? 80;
-
-    // Build adjacency: parent → children
-    const incomingCount = new Map<string, number>();
+    // Build adjacency for topological sort
+    const inDegree = new Map<string, number>();
     const children = new Map<string, string[]>();
     for (const node of graph.nodes) {
-      incomingCount.set(node.id, 0);
+      inDegree.set(node.id, 0);
       children.set(node.id, []);
     }
     for (const edge of graph.edges) {
-      incomingCount.set(edge.target, (incomingCount.get(edge.target) ?? 0) + 1);
-      const ch = children.get(edge.source);
-      if (ch) ch.push(edge.target);
+      inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+      children.get(edge.source)?.push(edge.target);
     }
 
-    // Find roots (no incoming edges)
-    let roots = graph.nodes.filter(n => (incomingCount.get(n.id) ?? 0) === 0).map(n => n.id);
-    if (roots.length === 0 && graph.nodes.length > 0) {
-      roots = [graph.nodes[0].id]; // Cyclic: pick first node
-    }
-
-    // BFS to assign levels, handling multiple trees (forest)
-    const levels = new Map<string, number>();
-    const visited = new Set<string>();
-    const levelNodes = new Map<number, string[]>(); // level → node ids
-
-    let forestOffset = 0; // horizontal offset for each tree in a forest
-    const treeXOffset = new Map<string, number>(); // nodeId → x offset from tree base
-    const nodeTreeBase = new Map<string, number>(); // nodeId → forest offset
-
-    for (const root of roots) {
-      if (visited.has(root)) continue;
-
-      // BFS for this tree
-      const queue: string[] = [root];
-      visited.add(root);
-      levels.set(root, 0);
-      const treeNodes: string[] = [];
-
-      while (queue.length > 0) {
-        const current = queue.shift()!;
-        treeNodes.push(current);
-        const level = levels.get(current)!;
-        if (!levelNodes.has(level)) levelNodes.set(level, []);
-        levelNodes.get(level)!.push(current);
-
-        for (const child of children.get(current) ?? []) {
-          if (!visited.has(child)) {
-            visited.add(child);
-            levels.set(child, level + 1);
-            queue.push(child);
-          }
-        }
-      }
-
-      // Position nodes in this tree: center children under parent
-      // First pass: assign x positions per level within this tree
-      const treeLevelNodes = new Map<number, string[]>();
-      for (const id of treeNodes) {
-        const lvl = levels.get(id)!;
-        if (!treeLevelNodes.has(lvl)) treeLevelNodes.set(lvl, []);
-        treeLevelNodes.get(lvl)!.push(id);
-      }
-
-      // Simple positioning: nodes at each level get evenly spaced
-      let maxWidth = 0;
-      for (const [, ids] of treeLevelNodes) {
-        let totalWidth = 0;
-        for (const id of ids) {
-          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
-          totalWidth += size.width + siblingSp;
-        }
-        totalWidth -= siblingSp; // remove trailing spacing
-        maxWidth = Math.max(maxWidth, totalWidth);
-      }
-
-      for (const [, ids] of treeLevelNodes) {
-        let totalWidth = 0;
-        for (const id of ids) {
-          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
-          totalWidth += size.width + siblingSp;
-        }
-        totalWidth -= siblingSp;
-
-        let x = (maxWidth - totalWidth) / 2; // center this level
-        for (const id of ids) {
-          const size = this.getNodeSize(graph.nodes.find(n => n.id === id)!);
-          treeXOffset.set(id, x);
-          nodeTreeBase.set(id, forestOffset);
-          x += size.width + siblingSp;
-        }
-      }
-
-      forestOffset += maxWidth + siblingSp * 2;
-    }
-
-    // Handle disconnected nodes (not reached by any root)
+    // Kahn's algorithm — topological sort (BFS)
+    const queue: string[] = [];
     for (const node of graph.nodes) {
-      if (!visited.has(node.id)) {
-        levels.set(node.id, 0);
-        treeXOffset.set(node.id, 0);
-        nodeTreeBase.set(node.id, forestOffset);
-        const size = this.getNodeSize(node);
-        forestOffset += size.width + siblingSp;
+      if ((inDegree.get(node.id) ?? 0) === 0) queue.push(node.id);
+    }
+    const sorted: string[] = [];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      sorted.push(id);
+      for (const child of children.get(id) ?? []) {
+        const deg = (inDegree.get(child) ?? 1) - 1;
+        inDegree.set(child, deg);
+        if (deg === 0) queue.push(child);
       }
+    }
+    // Append any remaining nodes (cycles)
+    for (const node of graph.nodes) {
+      if (!sorted.includes(node.id)) sorted.push(node.id);
+    }
+
+    // Compute max node dimensions for uniform grid cells
+    const sizes = new Map<string, { width: number; height: number }>();
+    let maxW = 0, maxH = 0;
+    for (const node of graph.nodes) {
+      const size = this.getNodeSize(node);
+      sizes.set(node.id, size);
+      maxW = Math.max(maxW, size.width);
+      maxH = Math.max(maxH, size.height);
+    }
+
+    // Determine grid columns: aim for roughly square aspect ratio
+    // 1→1, 2-3→2, 4-6→2, 7-12→3, 13-20→4, etc.
+    const cols = Math.max(1, Math.round(Math.sqrt(sorted.length)));
+    const gapX = 30;
+    const gapY = 40;
+    const cellW = maxW + gapX;
+    const cellH = maxH + gapY;
+
+    // Place nodes in grid, centering each within its cell
+    const positions = new Map<string, { x: number; y: number }>();
+    for (let i = 0; i < sorted.length; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const size = sizes.get(sorted[i])!;
+      positions.set(sorted[i], {
+        x: col * cellW + (maxW - size.width) / 2,
+        y: row * cellH + (maxH - size.height) / 2,
+      });
     }
 
     return graph.nodes.map(node => ({
       ...node,
-      position: {
-        x: (nodeTreeBase.get(node.id) ?? 0) + (treeXOffset.get(node.id) ?? 0),
-        y: (levels.get(node.id) ?? 0) * levelSep,
-      },
+      position: positions.get(node.id) ?? node.position,
     }));
   }
 
@@ -966,8 +906,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   // Event handlers
   onCanvasMouseDown(event: MouseEvent): void {
-    // Close layout dropdown on any canvas interaction
+    // Close dropdowns on any canvas interaction
     this.layoutDropdownOpen.set(false);
+    this.edgeTypeDropdownOpen.set(false);
 
     // Prevent native text selection on all canvas mousedowns (suppresses Edge mini menu)
     event.preventDefault();
@@ -1052,7 +993,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         );
         
         this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
-        this.emitGraphChange();
+        this.emitGraphChange(true); // Skip history during resize — pushed on mouseUp
       }
     } else if (this.isPanning) {
       const dx = event.clientX - this.lastMousePos.x;
@@ -1167,7 +1108,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       );
 
       this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
-      this.emitGraphChange();
+      this.emitGraphChange(true); // Skip history during drag — pushed on mouseUp
     } else if (this.draggedEdge) {
       // Edge reconnection - find hovered node and closest port
       const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
@@ -1360,6 +1301,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.previewLine.set(null);
     }
 
+    // Push a single history snapshot after drag/resize completes
+    if ((this.draggedNode && this.didDrag) || this.resizingNode) {
+      this.historyService.push(this.internalGraph());
+    }
+
     this.isPanning = false;
     this.draggedNode = null;
     this.draggedNodeOffsets.clear();
@@ -1518,9 +1464,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   // Helper methods
-  private emitGraphChange(): void {
-    // Push to history (unless this is an undo/redo operation)
-    if (!this.historyService.isUndoRedo()) {
+  private emitGraphChange(skipHistory = false): void {
+    // Push to history (unless this is an undo/redo operation or explicitly skipped during drag)
+    if (!skipHistory && !this.historyService.isUndoRedo()) {
       this.historyService.push(this.internalGraph());
     }
     this.graphChange.emit(this.internalGraph());
@@ -2038,7 +1984,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const s = this.getPortWorldPosition(sourceNode, sourcePort);
     const t = this.getPortWorldPosition(targetNode, targetPort);
 
-    const pathType = this.resolvedTheme.edge.pathType;
+    const pathType = this.activeEdgePathType;
 
     if (pathType === 'bezier') {
       const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
@@ -2076,6 +2022,17 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }
 
     return `M ${s.x},${s.y} L ${t.x},${t.y}`;
+  }
+
+  /** Active edge path type — runtime override takes precedence over theme. */
+  get activeEdgePathType(): 'straight' | 'bezier' | 'step' {
+    return this.edgePathTypeOverride() ?? this.resolvedTheme.edge.pathType;
+  }
+
+  /** Change the edge path type at runtime. */
+  setEdgePathType(type: 'straight' | 'bezier' | 'step'): void {
+    this.edgePathTypeOverride.set(type);
+    this.edgeTypeDropdownOpen.set(false);
   }
 
   // Port spacing/margin — resolved from theme config
@@ -2673,36 +2630,50 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const targetNode = nodes.find(n => n.id === edge.target);
       if (!sourceNode || !targetNode) { acc.push(edge); return acc; }
 
-      const newSourcePort = this.findClosestPortForEdge(sourceNode, targetNode, 'source');
-      const newTargetPort = this.findClosestPortForEdge(targetNode, sourceNode, 'target');
-
-      if (edge.sourcePort === newSourcePort && edge.targetPort === newTargetPort) {
-        acc.push(edge);
-        return acc;
+      // Collect port pairs already used by sibling edges between the same node pair
+      const usedPortPairs = new Set<string>();
+      for (const other of acc) {
+        if ((other.source === edge.source && other.target === edge.target) ||
+            (other.source === edge.target && other.target === edge.source)) {
+          const sp = other.sourcePort ?? '';
+          const tp = other.targetPort ?? '';
+          usedPortPairs.add(`${sp}|${tp}`);
+          usedPortPairs.add(`${tp}|${sp}`); // Also block the reverse
+        }
       }
 
-      // Check if an already-processed edge between the same pair already uses these ports
-      const wouldConflict = acc.some(other =>
-        ((other.source === edge.source && other.target === edge.target) ||
-         (other.source === edge.target && other.target === edge.source)) &&
-        other.sourcePort === newSourcePort &&
-        other.targetPort === newTargetPort
-      );
+      // Rank all source ports by how well they face the target
+      const rankedSourcePorts = this.rankPortsForEdge(sourceNode, targetNode);
+      const rankedTargetPorts = this.rankPortsForEdge(targetNode, sourceNode);
 
-      if (wouldConflict) {
-        acc.push(edge); // Keep original ports to avoid visual merging
-      } else {
-        acc.push({ ...edge, sourcePort: newSourcePort, targetPort: newTargetPort });
+      // Find the best non-conflicting combination
+      let bestSourcePort = rankedSourcePorts[0];
+      let bestTargetPort = rankedTargetPorts[0];
+      let found = false;
+
+      for (const sp of rankedSourcePorts) {
+        for (const tp of rankedTargetPorts) {
+          const key = `${sp}|${tp}`;
+          if (!usedPortPairs.has(key)) {
+            bestSourcePort = sp;
+            bestTargetPort = tp;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
       }
+
+      acc.push({ ...edge, sourcePort: bestSourcePort, targetPort: bestTargetPort });
       return acc;
     }, []);
   }
 
-  private findClosestPortForEdge(
-    node: GraphNode,
-    otherNode: GraphNode,
-    endpoint: 'source' | 'target'
-  ): string {
+  /**
+   * Rank all ports on a node by how well they face another node.
+   * Returns port position strings ordered best-to-worst.
+   */
+  private rankPortsForEdge(node: GraphNode, otherNode: GraphNode): string[] {
     const nodeSize = this.getNodeSize(node);
     const otherSize = this.getNodeSize(otherNode);
     const nodeCenter: Position = {
@@ -2714,14 +2685,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       y: otherNode.position.y + otherSize.height / 2
     };
 
-    // Direction vector from this node's center to the other node's center
     const dirX = otherCenter.x - nodeCenter.x;
     const dirY = otherCenter.y - nodeCenter.y;
     const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
     const normDirX = dirX / dirLen;
     const normDirY = dirY / dirLen;
 
-    // Unit outward normals for each side
     const sideNormals: Record<string, { nx: number; ny: number }> = {
       top: { nx: 0, ny: -1 },
       bottom: { nx: 0, ny: 1 },
@@ -2730,33 +2699,30 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     };
 
     const ports = this.getNodePorts(node);
-    let bestPort = ports[0];
-    let bestScore = -Infinity;
+    const scored: Array<{ position: string; score: number }> = [];
+
     for (const p of ports) {
       const side = this.getPortSide(p.position);
       const normal = sideNormals[side];
-
-      // Dot product: how well does the port's outward direction match the
-      // direction toward the other node? Range [-1, 1].
       const dot = normal.nx * normDirX + normal.ny * normDirY;
-
-      // Distance from port to other node's center (lower is better)
       const wx = node.position.x + p.x;
       const wy = node.position.y + p.y;
       const dx = otherCenter.x - wx;
       const dy = otherCenter.y - wy;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-      // Score: directional alignment is primary, distance is tiebreaker.
-      // Dot is in [-1, 1]; dividing by dist ensures closer aligned ports win ties.
-      const score = dot + 1 / dist;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestPort = p;
-      }
+      scored.push({ position: p.position, score: dot + 1 / dist });
     }
-    return bestPort.position;
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.position);
+  }
+
+  private findClosestPortForEdge(
+    node: GraphNode,
+    otherNode: GraphNode,
+    _endpoint: 'source' | 'target'
+  ): string {
+    return this.rankPortsForEdge(node, otherNode)[0];
   }
 
   /** Get the component type for a node (from NodeTypeDefinition.component, if set). */
@@ -2816,7 +2782,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const t = this.getPortWorldPosition(targetNode, targetPort);
     const pathT = this.resolvedTheme.edge.label.position;
     const offsetY = this.resolvedTheme.edge.label.offsetY;
-    const pathType = this.resolvedTheme.edge.pathType;
+    const pathType = this.activeEdgePathType;
 
     let pos: Position;
 

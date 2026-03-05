@@ -191,7 +191,7 @@ export interface ValidationError {
  * Layout configuration.
  */
 export interface LayoutConfig {
-  algorithm: 'dagre' | 'force' | 'tree' | 'manual'; // Layout algorithm
+  algorithm: 'dagre' | 'compact' | 'manual'; // Layout algorithm
   options?: LayoutOptions;
 }
 
@@ -201,13 +201,6 @@ export interface LayoutOptions {
   ranksep?: number;                    // Separation between ranks (default: 80)
   nodesep?: number;                    // Separation between nodes (default: 40)
   edgesep?: number;                    // Separation between edges (default: 10)
-  // Force-directed options
-  iterations?: number;                 // Simulation iterations (default: 300)
-  repulsionStrength?: number;          // Node repulsion force (default: 500)
-  attractionStrength?: number;         // Edge attraction force (default: 0.01)
-  // Tree options
-  levelSeparation?: number;            // Vertical spacing between levels (default: 120)
-  siblingSpacing?: number;             // Horizontal spacing between siblings (default: 80)
 }
 
 /**
@@ -486,8 +479,9 @@ export interface PaletteConfig {
  * - `'fit'` — Fit to screen
  * - `'undo'` — Undo last action
  * - `'redo'` — Redo last undone action
+ * - `'edge-type'` — Edge path type switcher (straight / bezier / step)
  */
-export type ToolbarItem = 'zoom-in' | 'zoom-out' | 'layout' | 'fit' | 'undo' | 'redo';
+export type ToolbarItem = 'zoom-in' | 'zoom-out' | 'layout' | 'fit' | 'undo' | 'redo' | 'edge-type';
 
 /**
  * Top toolbar configuration.

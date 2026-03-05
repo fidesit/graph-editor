@@ -68,13 +68,9 @@
                   <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'dagre-lr' ? '✓' : '' }}</span>
                   Hierarchical →
                 </button>
-                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'force'" (click)="applyLayout('force')">
-                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'force' ? '✓' : '' }}</span>
-                  Force
-                </button>
-                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'tree'" (click)="applyLayout('tree')">
-                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'tree' ? '✓' : '' }}</span>
-                  Tree
+                <button class="layout-option" [class.active]="selectedLayoutAlgorithm() === 'compact'" (click)="applyLayout('compact')">
+                  <span class="layout-option-check">{{ selectedLayoutAlgorithm() === 'compact' ? '✓' : '' }}</span>
+                  Compact
                 </button>
               </div>
             }
@@ -92,7 +88,65 @@
           </button>
         }
 
-        @if (showToolbarDivider(['zoom-in', 'zoom-out', 'layout', 'fit'], ['undo', 'redo'])) {
+        @if (showToolbarDivider(['zoom-in', 'zoom-out', 'layout', 'fit'], ['edge-type', 'undo', 'redo'])) {
+          <div class="toolbar-divider"></div>
+        }
+
+        <!-- Edge type -->
+        @if (showToolbarItem('edge-type')) {
+          <div class="layout-btn-group">
+            <button
+              class="toolbar-btn layout-main-btn"
+              title="Edge routing: {{ activeEdgePathType }}"
+              (click)="setEdgePathType(activeEdgePathType === 'straight' ? 'bezier' : activeEdgePathType === 'bezier' ? 'step' : 'straight')"
+            >
+              @switch (activeEdgePathType) {
+                @case ('straight') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <line x1="4" y1="20" x2="20" y2="4"/>
+                  </svg>
+                }
+                @case ('bezier') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <path d="M4 20 C 4 8, 20 16, 20 4"/>
+                  </svg>
+                }
+                @case ('step') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4,20 4,12 20,12 20,4"/>
+                  </svg>
+                }
+              }
+            </button>
+            <button
+              class="toolbar-btn layout-chevron"
+              title="Edge type options"
+              (click)="edgeTypeDropdownOpen.set(!edgeTypeDropdownOpen()); $event.stopPropagation()"
+            >
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3.5L5 6.5L8 3.5"/>
+              </svg>
+            </button>
+            @if (edgeTypeDropdownOpen()) {
+              <div class="layout-dropdown" (click)="$event.stopPropagation()">
+                <button class="layout-option" [class.active]="activeEdgePathType === 'straight'" (click)="setEdgePathType('straight')">
+                  <span class="layout-option-check">{{ activeEdgePathType === 'straight' ? '✓' : '' }}</span>
+                  Straight
+                </button>
+                <button class="layout-option" [class.active]="activeEdgePathType === 'bezier'" (click)="setEdgePathType('bezier')">
+                  <span class="layout-option-check">{{ activeEdgePathType === 'bezier' ? '✓' : '' }}</span>
+                  Bezier
+                </button>
+                <button class="layout-option" [class.active]="activeEdgePathType === 'step'" (click)="setEdgePathType('step')">
+                  <span class="layout-option-check">{{ activeEdgePathType === 'step' ? '✓' : '' }}</span>
+                  Step
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        @if (showToolbarDivider(['zoom-in', 'zoom-out', 'layout', 'fit', 'edge-type'], ['undo', 'redo'])) {
           <div class="toolbar-divider"></div>
         }
 
@@ -138,7 +192,7 @@
                 class="palette-item"
                 [attr.data-node-type]="nodeType.type"
                 [attr.title]="nodeType.label || nodeType.type"
-                (click)="addNode(nodeType.type)"
+                (click)="addNodeFromPalette(nodeType.type, $event)"
               >
                 @if (nodeType.iconSvg) {
                   <svg
@@ -319,6 +373,7 @@
             [attr.transform]="'translate(' + node.position.x + ',' + node.position.y + ')'"
             class="graph-node"
             [class.selected]="selection().nodes.includes(node.id)"
+            [class.fly-in]="flyInNodeId() === node.id"
             [attr.data-node-id]="node.id"
             (mousedown)="onNodeMouseDown($event, node)"
             (click)="onNodeClick($event, node)"
