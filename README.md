@@ -4,48 +4,88 @@
 [![CI](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml/badge.svg)](https://github.com/fidesit/graph-editor/actions/workflows/ci.yml)
 [![Deploy](https://github.com/fidesit/graph-editor/actions/workflows/pages.yml/badge.svg)](https://fidesit.github.io/graph-editor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz_small.svg)](https://stackblitz.com/github/fidesit/graph-editor)
 
-Configuration-driven visual graph editor for Angular 19+.
+A customizable, Angular-native graph editor for building workflow designers, data pipelines, and node-based UIs.
+Built with **Signals**. Zero RxJS. One component. Full control.
 
-**[Live Demo](https://fidesit.github.io/graph-editor)** | **[Try on StackBlitz](https://stackblitz.com/github/fidesit/graph-editor)**
+*Build workflow editors, approval flows, state machines, ERD diagrams, org charts, and more.*
 
-![Graph Editor Demo](docs/demo.gif)
+**[Live Demo](https://fidesit.github.io/graph-editor)** · **[StackBlitz](https://stackblitz.com/github/fidesit/graph-editor)** · **[API Docs](docs/API.md)**
 
-![Theme Presets](files/themes.png)
+<p align="center">
+  <img src="files/demo.gif" alt="Drag-to-connect nodes, auto-layout, and lifecycle guards in action" width="720" />
+</p>
+
+<p align="center">
+  <em>Drag-to-connect, auto-layout, lifecycle guards with toast feedback, and 4 built-in theme presets.</em>
+</p>
+
+<p align="center">
+  <img src="files/themes.png" alt="Corporate, Emerald, Blueprint, and Midnight theme presets" width="720" />
+</p>
+
+<p align="center">
+  <em>Corporate · Emerald · Blueprint · Midnight — or bring your own theme.</em>
+</p>
+
+---
+
+## Why @utisha/graph-editor?
+
+| | |
+|---|---|
+| **Angular-native** | Built for Angular 19+ with Signals and standalone components — not a React wrapper |
+| **Single component** | Drop in `<graph-editor>` with a config object. No services, no modules, no boilerplate |
+| **Config-driven** | Declare node types, edges, canvas, and theme — get a full-featured editor |
+| **SVG rendering** | Crisp at any zoom level. No Canvas API, no WebGL |
+| **Lightweight** | Only Angular + dagre. No heavyweight dependencies |
+
+---
 
 ## Features
 
-- ⚙️ **Configuration-driven** — No hardcoded domain logic
-- 🎯 **Type-safe** — Full TypeScript support with strict mode
-- 🎭 **Themeable** — Full theme config (canvas, nodes, edges, ports, selection, fonts, toolbar) + CSS custom properties
-- ⌨️ **Keyboard shortcuts** — Delete, arrow keys, escape, undo/redo
-- 📦 **Lightweight** — Only Angular + dagre dependencies
-- 🔌 **Framework-agnostic data** — Works with any backend/state management
-- 🖼️ **Custom node images** — Use images instead of emoji icons
-- 🎨 **Custom SVG icons** — Define your own icon sets with `iconSvg` property
-- ⬜ **Multi-selection** — Box select (Shift+drag) or Ctrl+Click to select multiple items
-- ↩️ **Undo/Redo** — Full history with Ctrl+Z / Ctrl+Y
-- 🔲 **Node resize** — Drag corner handle to resize nodes (Hand tool)
-- 📝 **Text wrapping** — Labels wrap and auto-size to fit within node bounds
-- 🛠️ **Built-in toolbar** — Tools, zoom controls, layout actions in top bar; node palette on left
-- 🧩 **Custom rendering** — ng-template injection for nodes (HTML or SVG) and edges, plus `ngComponentOutlet` support
-- 🔀 **Edge path strategies** — Straight, bezier, and step routing algorithms
-- 📋 **Copy/Paste/Cut** — Ctrl+C/V/X to duplicate or cut selected nodes with their internal edges
-- 📐 **Snap alignment guides** — Visual guide lines when dragging near other nodes' edges or center
-- 🔗 **Drag-to-connect** — Select node to reveal ports, drag from port to create edges
-- 🔵 **Multiple anchor points** — Dynamic port density per side with configurable spacing
-- 🛡️ **Lifecycle hooks** — `beforeNodeAdd`, `beforeNodeRemove`, `beforeEdgeAdd`, `beforeEdgeRemove`, `canConnect` guards that can cancel operations
+### Core Editing
+- **Drag-to-connect** — Reveal ports on hover, drag to create edges
+- **Multi-selection** — Box select (Shift+drag) or Ctrl+Click
+- **Copy / Paste / Cut** — Ctrl+C/V/X with offset pasting
+- **Undo / Redo** — Full history with Ctrl+Z / Ctrl+Y
+- **Node resize** — Drag corner handles
+- **Edge waypoints** — Ctrl+click to add manual routing bends
+- **Arrow key nudge** — Move selected nodes 1px (Shift: 10px)
 
-## Installation
+### Visual Customization
+- **4 theme presets** — Corporate, Emerald, Blueprint, Midnight
+- **Full ThemeConfig** — Canvas, nodes, edges, ports, selection, fonts, toolbar ([7 sub-interfaces](docs/API.md#theming))
+- **CSS custom properties** — Override with `--graph-editor-*` variables
+- **Custom SVG icons** — Define icon sets matching your design system
+- **Per-type node styles** — Different colors/borders per node type
+- **3 edge path strategies** — Straight, bezier, and step routing
+
+### Developer Experience
+- **Lifecycle hooks** — `canConnect`, `beforeNodeAdd`, `beforeNodeRemove`, `beforeEdgeAdd`, `beforeEdgeRemove` with async support
+- **Validation system** — Custom rules with error/warning severity
+- **Template injection** — `ng-template` for custom node (HTML/SVG) and edge rendering
+- **Full TypeScript** — Strict mode, exported interfaces for everything
+- **Configurable toolbar** — Choose which buttons appear, or hide it entirely
+
+### Layout & Navigation
+- **Auto-layout** — Dagre hierarchical (TB/LR) and compact algorithms
+- **Fit to screen** — One-click viewport reset
+- **Zoom & pan** — Mouse wheel zoom, canvas drag
+- **Grid snapping** — Optional snap-to-grid with configurable size
+- **Snap alignment guides** — Visual guides when dragging near other nodes
+
+---
+
+## Quick Start
+
+### 1. Install
 
 ```bash
 npm install @utisha/graph-editor
 ```
 
-## Quick Start
-
-### 1. Import the component
+### 2. Import and configure
 
 ```typescript
 import { Component, signal } from '@angular/core';
@@ -64,459 +104,118 @@ import { GraphEditorComponent, Graph, GraphEditorConfig } from '@utisha/graph-ed
   `
 })
 export class MyEditorComponent {
-  // See configuration below
-}
-```
+  editorConfig: GraphEditorConfig = {
+    nodes: {
+      types: [
+        { type: 'process', label: 'Process', component: null, defaultData: { name: 'Process' }, size: { width: 180, height: 80 } },
+        { type: 'decision', label: 'Decision', component: null, defaultData: { name: 'Decision' }, size: { width: 180, height: 80 } },
+      ]
+    },
+    edges: { component: null, style: { stroke: '#94a3b8', strokeWidth: 2, markerEnd: 'arrow' } },
+    canvas: {
+      grid: { enabled: true, size: 20, snap: true },
+      zoom: { enabled: true, min: 0.25, max: 2.0, wheelEnabled: true },
+      pan: { enabled: true }
+    },
+    palette: { enabled: true, position: 'left' }
+  };
 
-### 2. Configure the editor
-
-```typescript
-editorConfig: GraphEditorConfig = {
-  nodes: {
-    types: [
-      {
-        type: 'process',
-        label: 'Process',
-        icon: '⚙️',
-        component: null, // Uses default rendering, or provide your own component
-        defaultData: { name: 'New Process' },
-        size: { width: 180, height: 80 }
-      },
-      {
-        type: 'decision',
-        label: 'Decision',
-        icon: '🔀',
-        component: null,
-        defaultData: { name: 'Decision' },
-        size: { width: 180, height: 80 }
-      }
+  currentGraph = signal<Graph>({
+    nodes: [
+      { id: '1', type: 'process', data: { name: 'Start' }, position: { x: 100, y: 100 } },
+      { id: '2', type: 'decision', data: { name: 'Check' }, position: { x: 300, y: 100 } }
+    ],
+    edges: [
+      { id: 'e1', source: '1', target: '2' }
     ]
-  },
-  edges: {
-    component: null, // Uses default rendering
-    style: {
-      stroke: '#94a3b8',
-      strokeWidth: 2,
-      markerEnd: 'arrow'
-    }
-  },
-  canvas: {
-    grid: {
-      enabled: true,
-      size: 20,
-      snap: true
-    },
-    zoom: {
-      enabled: true,
-      min: 0.25,
-      max: 2.0,
-      wheelEnabled: true
-    },
-    pan: {
-      enabled: true
-    }
-  },
-  palette: {
-    enabled: true,
-    position: 'left'
-  }
-};
-```
+  });
 
-### 3. Initialize your graph
-
-```typescript
-currentGraph = signal<Graph>({
-  nodes: [
-    { id: '1', type: 'process', data: { name: 'Start' }, position: { x: 100, y: 100 } },
-    { id: '2', type: 'decision', data: { name: 'Check' }, position: { x: 300, y: 100 } }
-  ],
-  edges: [
-    { id: 'e1', source: '1', target: '2' }
-  ]
-});
-
-onGraphChange(graph: Graph): void {
-  this.currentGraph.set(graph);
-  // Save to backend, update state, etc.
-}
-```
-
-## Configuration
-
-### GraphEditorConfig
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `nodes` | `NodesConfig` | Node type definitions + icon position |
-| `edges` | `EdgesConfig` | Edge configuration |
-| `canvas` | `CanvasConfig` | Canvas behavior (grid, zoom, pan) |
-| `validation` | `ValidationConfig` | Validation rules |
-| `palette` | `PaletteConfig` | Node palette configuration |
-| `layout` | `LayoutConfig` | Layout algorithm (dagre, force, tree) |
-| `theme` | `ThemeConfig` | Visual theme (shadows, CSS variables) |
-| `toolbar` | `ToolbarConfig` | Top toolbar visibility and button selection |
-| `hooks` | `LifecycleHooks` | Lifecycle guards to intercept/cancel user actions |
-
-### Node Type Definition
-
-```typescript
-interface NodeTypeDefinition {
-  type: string;           // Unique identifier
-  label?: string;         // Display name in palette
-  icon?: string;          // Fallback icon (emoji or text)
-  iconSvg?: SvgIconDefinition;  // Professional SVG icon (preferred)
-  component: Type<any>;   // Angular component to render
-  defaultData: Record<string, any>;
-  size?: { width: number; height: number };
-  ports?: PortConfig;     // Connection ports
-  constraints?: NodeConstraints;
-}
-```
-
-### Custom Node Images
-
-Nodes can display custom images instead of emoji icons. Set `imageUrl` in `defaultData` or per-instance in `node.data['imageUrl']`:
-
-```typescript
-// In node type definition (applies to all nodes of this type)
-{
-  type: 'agent',
-  label: 'AI Agent',
-  icon: '🤖',  // Fallback if imageUrl fails to load
-  component: null,
-  defaultData: {
-    name: 'Agent',
-    imageUrl: '/assets/icons/agent.svg'  // Custom image URL
+  onGraphChange(graph: Graph) {
+    this.currentGraph.set(graph);
   }
 }
-
-// Or per-instance (overrides type default)
-const node: GraphNode = {
-  id: '1',
-  type: 'agent',
-  data: {
-    name: 'Custom Agent',
-    imageUrl: 'https://example.com/custom-icon.png'  // Instance-specific
-  },
-  position: { x: 100, y: 100 }
-};
 ```
 
-Supported formats: SVG, PNG, JPG, data URLs, or any valid image URL.
+That's it. You have a working graph editor with drag-to-connect, auto-layout, undo/redo, and a node palette.
 
-### Custom SVG Icons
+→ **[Full API reference](docs/API.md)** — Inputs, outputs, methods, theming, validation, lifecycle hooks
 
-Define your own SVG icons using the `SvgIconDefinition` interface. This allows you to use professional vector icons that match your design system:
+---
 
-```typescript
-import { SvgIconDefinition, NodeTypeDefinition } from '@utisha/graph-editor';
+## Lifecycle Hooks
 
-// Define your icon set
-const MY_ICONS: Record<string, SvgIconDefinition> = {
-  process: {
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#6366f1',  // Your brand color
-    strokeWidth: 1.75,
-    path: `M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z
-           M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06...`
-  },
-  decision: {
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#8b5cf6',
-    strokeWidth: 1.75,
-    path: `M12 3L21 12L12 21L3 12L12 3Z
-           M12 8v4
-           M12 16h.01`
-  },
-  start: {
-    viewBox: '0 0 24 24',
-    fill: 'none',
-    stroke: '#22c55e',  // Semantic: green for start
-    strokeWidth: 1.75,
-    path: `M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2...
-           M10 8l6 4-6 4V8Z`
-  }
-};
-
-// Use in node types
-const nodeTypes: NodeTypeDefinition[] = [
-  { type: 'process', label: 'Process', iconSvg: MY_ICONS.process, component: null, defaultData: { name: 'Process' } },
-  { type: 'decision', label: 'Decision', iconSvg: MY_ICONS.decision, component: null, defaultData: { name: 'Decision' } },
-  { type: 'start', label: 'Start', iconSvg: MY_ICONS.start, component: null, defaultData: { name: 'Start' } },
-];
-```
-
-**Icon priority:** `node.data['imageUrl']` → `nodeType.iconSvg` → `nodeType.defaultData['imageUrl']` → `nodeType.icon` (emoji fallback)
-
-### Canvas Configuration
-
-```typescript
-interface CanvasConfig {
-  grid?: {
-    enabled: boolean;
-    size: number;      // Grid cell size in pixels
-    snap: boolean;     // Snap nodes to grid
-    color?: string;
-  };
-  zoom?: {
-    enabled: boolean;
-    min: number;       // Minimum zoom level
-    max: number;       // Maximum zoom level
-    step: number;      // Zoom increment
-    wheelEnabled: boolean;
-  };
-  pan?: {
-    enabled: boolean;
-  };
-}
-```
-
-## API
-
-### Inputs
-
-| Input | Type | Description |
-|-------|------|-------------|
-| `config` | `GraphEditorConfig` | Editor configuration (required) |
-| `graph` | `Graph` | Current graph data |
-| `readonly` | `boolean` | Disable editing |
-| `visualizationMode` | `boolean` | Display only mode |
-
-### Outputs
-
-| Output | Type | Description |
-|--------|------|-------------|
-| `graphChange` | `EventEmitter<Graph>` | Emitted on any graph mutation |
-| `nodeClick` | `EventEmitter<GraphNode>` | Node clicked |
-| `nodeDoubleClick` | `EventEmitter<GraphNode>` | Node double-clicked |
-| `edgeClick` | `EventEmitter<GraphEdge>` | Edge clicked |
-| `edgeDoubleClick` | `EventEmitter<GraphEdge>` | Edge double-clicked |
-| `selectionChange` | `EventEmitter<SelectionState>` | Selection changed |
-| `validationChange` | `EventEmitter<ValidationResult>` | Validation state changed |
-| `contextMenu` | `EventEmitter<ContextMenuEvent>` | Right-click on canvas/node/edge |
-
-### Methods
-
-```typescript
-// Node operations
-addNode(type: string, position?: Position): GraphNode;
-removeNode(nodeId: string): void;
-updateNode(nodeId: string, updates: Partial<GraphNode>): void;
-
-// Selection
-selectNode(nodeId: string | null): void;
-selectEdge(edgeId: string | null): void;
-clearSelection(): void;
-getSelection(): SelectionState;
-
-// Layout
-applyLayout(algorithm?: 'dagre-tb' | 'dagre-lr' | 'force' | 'tree'): Promise<void>;
-fitToScreen(padding?: number): void;
-zoomTo(level: number): void;
-
-// Validation
-validate(): ValidationResult;
-```
-
-## Theming
-
-Customize the editor appearance using CSS custom properties:
-
-```css
-:root {
-  --graph-editor-canvas-bg: #f8f9fa;
-  --graph-editor-grid-color: #e0e0e0;
-  --graph-editor-node-bg: #ffffff;
-  --graph-editor-node-border: #cbd5e0;
-  --graph-editor-node-selected: #3b82f6;
-  --graph-editor-edge-stroke: #94a3b8;
-  --graph-editor-edge-selected: #3b82f6;
-}
-```
-
-## Validation
-
-Add custom validation rules:
+Intercept and cancel user-initiated mutations with sync and async hooks:
 
 ```typescript
 const config: GraphEditorConfig = {
   // ...
-  validation: {
-    validateOnChange: true,
-    validators: [
-      {
-        id: 'no-orphans',
-        message: 'All nodes must be connected',
-        validator: (graph) => {
-          const orphans = findOrphanNodes(graph);
-          return orphans.map(node => ({
-            rule: 'no-orphans',
-            message: `Node "${node.data.name}" is not connected`,
-            nodeId: node.id,
-            severity: 'warning'
-          }));
-        }
-      }
-    ]
+  hooks: {
+    canConnect: (source, target, graph) => {
+      return source.nodeId !== target.nodeId; // no self-loops
+    },
+    beforeNodeRemove: async (nodes) => {
+      return confirm(`Delete ${nodes.length} node(s)?`);
+    },
+    beforeEdgeAdd: (edge, graph) => {
+      const outgoing = graph.edges.filter(e => e.source === edge.source).length;
+      return outgoing < 3; // max 3 outgoing per node
+    }
   }
 };
 ```
 
-## Lifecycle Hooks
+`canConnect` is sync (called every mousemove). All `before*` hooks support `Promise<boolean>` for dialogs or server validation.
 
-Lifecycle hooks let you intercept and cancel user-initiated graph mutations.
-Configure them via the `hooks` property on `GraphEditorConfig`.
+→ **[Full lifecycle hooks docs](docs/API.md#lifecycle-hooks)**
 
-> **Note:** Hooks only apply to user-initiated actions (palette add, keyboard delete/cut, drag-to-connect).
-> Programmatic API calls (`addNode()`, `removeNode()`, `removeEdge()`) do **not** trigger hooks.
+---
 
-### Hook Types
+## Theming
 
-| Hook | Sync/Async | When |
-|------|-----------|------|
-| `canConnect` | **Sync** | Every mousemove during drag-to-connect and edge reconnection |
-| `beforeNodeAdd` | Async | Before a node is added via the palette |
-| `beforeNodeRemove` | Async | Before nodes are deleted (Delete/Backspace/Cut) |
-| `beforeEdgeAdd` | Async | Before an edge is created via drag-to-connect |
-| `beforeEdgeRemove` | Async | Before edges are deleted (Delete/Backspace/Cut) |
-
-All async hooks accept a return type of `boolean | Promise<boolean>`. Returning (or resolving) `false` cancels the operation. If a hook throws an error, the operation is also cancelled.
-
-### Example
+Pass a `ThemeConfig` or use CSS custom properties:
 
 ```typescript
-import { GraphEditorConfig, LifecycleHooks } from '@utisha/graph-editor';
-
-const hooks: LifecycleHooks = {
-  // Sync — called on every mousemove, must return immediately
-  canConnect: (source, target, graph) => {
-    // No self-loops
-    if (source.nodeId === target.nodeId) return false;
-    // No duplicate edges
-    return !graph.edges.some(
-      e => e.source === source.nodeId && e.target === target.nodeId
-    );
-  },
-
-  // Async — can show confirmation dialogs or call a server
-  beforeNodeRemove: async (nodes, graph) => {
-    const critical = nodes.filter(n => n.type === 'start');
-    if (critical.length > 0) {
-      return confirm('Delete the Start node?');
-    }
-    return true;
-  },
-
-  beforeNodeAdd: (type, graph) => {
-    // Only one Start node allowed
-    if (type === 'start' && graph.nodes.some(n => n.type === 'start')) {
-      return false;
-    }
-    return true;
-  },
-
-  beforeEdgeAdd: (edge, graph) => true,
-  beforeEdgeRemove: (edges, graph) => true,
-};
-
 const config: GraphEditorConfig = {
-  // ...nodes, edges, canvas, etc.
-  hooks
+  // ...
+  theme: {
+    canvas: { background: '#0f172a', gridType: 'dot', gridColor: '#1e293b' },
+    node: { background: '#1e293b', borderColor: '#334155', labelColor: '#e2e8f0' },
+    edge: { stroke: '#475569', pathType: 'bezier' },
+  }
 };
 ```
 
-### Demo
+→ **[Full theming docs](docs/API.md#theming)**
 
-The [live demo](https://fidesit.github.io/graph-editor) includes a **Guards** toggle
-that enables workflow-level lifecycle hooks with toast notifications:
-
-- `canConnect` — prevents self-loops, duplicate edges, incoming to Start, outgoing from End
-- `beforeNodeAdd` — enforces max 1 Start and 1 End node (with toast notification)
-- `beforeNodeRemove` — shows `confirm()` dialog when deleting Start/End nodes
-- `beforeEdgeAdd` — limits non-Decision nodes to 2 outgoing edges (with toast)
-
-Toggle it off to compare unrestricted editing.
+---
 
 ## Development
 
 ```bash
-# Clone the repository
 git clone https://github.com/fidesit/graph-editor.git
 cd graph-editor
-
-# Install dependencies
 npm install
-
-# Build the library
-npm run build
-
-# Run the demo app
-npm run start
-
-# Run tests
-npm test
+npm run start     # Demo on localhost:4200
+npm test          # Karma + ChromeHeadless
+npm run build     # Build library to dist/
 ```
 
 ## Roadmap
 
-### Completed
+### Planned
 
-- [x] ~~Custom node components via `foreignObject`~~ — Template injection + `ngComponentOutlet`
-- [x] ~~Context menus~~ — Event emits on right-click (see demo for example UI)
-- [x] ~~Multi-select~~ — Box selection (Shift+drag) and Ctrl+Click toggle
-- [x] ~~Keyboard shortcuts~~ — Delete, arrows, Escape, Undo/Redo
-- [x] ~~Undo/Redo~~ — Ctrl+Z / Ctrl+Y with full history
-- [x] ~~Custom node images~~ — Use `imageUrl` in node data
-- [x] ~~Custom SVG icons~~ — Define icons with `iconSvg` property
-- [x] ~~Node resize~~ — Drag corner handle with Hand tool
-- [x] ~~Text wrapping~~ — Labels wrap and auto-size within node bounds
-- [x] ~~Comprehensive theming~~ — Full ThemeConfig with 7 sub-interfaces + CSS custom properties bridge
+- [ ] **Edge labels** — Clickable, editable text on edges
+- [ ] **Group/collapse** — Collapsible container nodes
+- [ ] **Minimap** — Overview panel with viewport indicator
+- [ ] **Export as image** — SVG/PNG export
+- [ ] **Search/filter** — Ctrl+F to find nodes by label/type
+- [ ] **Swim lanes** — Horizontal/vertical partitions
+- [ ] **Touch/mobile** — Pinch-to-zoom, touch drag
+- [ ] **Edge animation** — Animated dashes for data flow visualization
 
-### Interaction & Editing
+### Shipped
 
-- [x] ~~Copy/paste~~ — Ctrl+C/V/X to duplicate or cut nodes with their internal edges
-- [x] ~~Snap guides~~ — Alignment lines when dragging near another node's edge/center (also during resize)
-- [x] ~~Drag-to-connect~~ — Select node to reveal ports, drag from port to connect (replaces line tool)
-- [ ] Edge labels — Clickable, editable text on edges (conditions, weights, transition names)
-- [x] ~~Edge waypoints~~ — Ctrl+click to add draggable waypoints on edges for manual routing bends
-- [ ] Group/collapse — Select multiple nodes and group into a collapsible container node
-
-### Navigation & Visualization
-
-- [ ] Minimap — Small overview panel with viewport indicator
-- [ ] Search/filter — Ctrl+F to find nodes by label/type, dim non-matching ones
-- [ ] Heatmap overlay — Color nodes by a numeric metric using `overlayData`
-- [ ] Edge animation — Animated dashes flowing along edges to show data direction/activity
-- [ ] Zoom to selection — Double-click a node to zoom and center on it
-
-### Data & Export
-
-- [ ] Export as image — SVG/PNG export of the current canvas
-- [ ] Import/export JSON — Toolbar button or API to serialize/deserialize the graph
-- [ ] Clipboard integration — Paste graph JSON from clipboard to import subgraphs
-
-### Validation & Feedback
-
-- [ ] Port-based connections with type checking — Color-coded ports that only accept compatible connections
-- [ ] Inline validation badges — Show error/warning icons directly on offending nodes
-- [ ] Max connections indicator — Show remaining connection slots on ports
-
-### Developer Experience
-
-- [x] ~~Event hooks~~ — `beforeNodeRemove`, `beforeEdgeAdd`, `canConnect` lifecycle guards with async support
-- [ ] Custom toolbar items — Inject custom buttons/components into the toolbar via template projection
-- [ ] Readonly per-node — Lock individual nodes from editing while others remain editable
-- [ ] Touch/mobile support — Pinch-to-zoom, touch drag, long-press for context menu
-- [ ] Accessibility improvements
-
-### Layout
-
-- [x] ~~Multiple layout algorithms~~ — Hierarchical (dagre TB/LR), force-directed, and tree layouts with dropdown switcher
-- [ ] Incremental layout — Re-layout only the neighborhood of a changed node
-- [ ] Swim lanes — Horizontal/vertical partitions that nodes snap into
+Lifecycle hooks · Edge waypoints · Edge path switcher · Copy/paste/cut · Snap guides · Drag-to-connect · Multiple anchor points · Undo/redo · Multi-select · Node resize · Text wrapping · Custom rendering (templates + components) · Full theming system · Custom SVG icons · Validation system · Auto-layout (dagre + compact) · Configurable toolbar & palette
 
 ## Contributing
 
