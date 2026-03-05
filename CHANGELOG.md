@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-03-05
+
+### Added
+
+- **Lifecycle hooks** — 5 new hooks (`canConnect`, `beforeNodeAdd`, `beforeNodeRemove`, `beforeEdgeAdd`, `beforeEdgeRemove`) for intercepting and cancelling user-initiated graph mutations. Configure via `hooks` property on `GraphEditorConfig`. `canConnect` is synchronous (called on every mousemove); all others support async for confirmation dialogs or server validation. Hooks only apply to user actions — programmatic API calls remain unguarded.
+- **Edge reconnection hook enforcement** — Reconnecting an edge endpoint now checks `canConnect` at drop time and invokes `beforeEdgeAdd` before committing, consistent with new connection behavior.
+- **Demo: Guards toggle** — New "Guards" checkbox in demo header enables workflow-level lifecycle hooks with toast notifications: no self-loops, no duplicate edges, max 1 Start/End, confirm before deleting Start/End, max 2 outgoing from non-Decision nodes.
+- **New exports** — `LifecycleHooks` and `ConnectionEndpoint` interfaces exported from public API.
+
+### Fixed
+
+- **Code quality improvements** — Infinite loop guards on layout algorithms, dead code removal, `as any` cast elimination, `DestroyRef` cleanup, dagre import error handling, magic number extraction, DRY deduplication of delete logic, hardcoded color fixes, inconsistent fallback values.
+
 ## [1.0.13] - 2026-03-05
 
 ### Added
