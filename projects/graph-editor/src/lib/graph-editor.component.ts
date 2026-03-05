@@ -23,6 +23,26 @@ import {GraphHistoryService} from './services/graph-history.service';
 import {SvgIconDefinition} from './icons/workflow-icons';
 import {NodeHtmlTemplateDirective, NodeSvgTemplateDirective, EdgeTemplateDirective, NodeTemplateContext, EdgeTemplateContext} from './template.directives';
 import {ResolvedTheme, resolveTheme, applyThemeCssProperties} from './theme.resolver';
+import {
+  getPortSide, getPortControlOffset,
+  buildRoundedPolyline, buildSmoothBezierThroughPoints, buildStepThroughPoints,
+  buildBezierPath, buildStepPath, buildStraightPath,
+  pointToSegmentDistance, evaluatePolylineAt
+} from './utils/edge-path.utils';
+import {
+  getNodeImageSize, getNodeImagePosition, getNodeIconPosition,
+  getNodeLabelPosition, getNodeLabelBounds, getWrappedNodeLabel, wrapText
+} from './utils/node-rendering.utils';
+import {
+  computeSnapGuides as computeSnapGuidesUtil,
+  computeResizeSnapGuides as computeResizeSnapGuidesUtil
+} from './utils/snap-guide.utils';
+import {
+  computePortPositions, getNodePorts as getNodePortsUtil,
+  getPortWorldPosition as getPortWorldPositionUtil,
+  rankPortsForEdge, findClosestPortForEdge as findClosestPortForEdgeUtil
+} from './utils/port-geometry.utils';
+import { layoutDagre as layoutDagreUtil, layoutCompact as layoutCompactUtil } from './utils/layout-algorithms';
 
 /**
  * Main graph editor component.
@@ -707,114 +727,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
   /** Dagre hierarchical layout */
   private async layoutDagre(graph: Graph, direction: 'TB' | 'LR'): Promise<GraphNode[]> {
-    const dagreModule = await import('dagre');
-    const dagre = dagreModule.default ?? dagreModule;
-    const opts = this.config.layout?.options;
-
-    const g = new dagre.graphlib.Graph();
-    g.setGraph({
-      rankdir: direction,
-      nodesep: opts?.nodesep ?? 60,
-      ranksep: opts?.ranksep ?? 80,
-      marginx: 40,
-      marginy: 40,
-    });
-    g.setDefaultEdgeLabel(() => ({}));
-
-    for (const node of graph.nodes) {
-      const size = this.getNodeSize(node);
-      g.setNode(node.id, { width: size.width, height: size.height });
-    }
-    for (const edge of graph.edges) {
-      g.setEdge(edge.source, edge.target);
-    }
-
-    dagre.layout(g);
-
-    return graph.nodes.map(node => {
-      const dagreNode = g.node(node.id);
-      if (!dagreNode) return node;
-      const size = this.getNodeSize(node);
-      return {
-        ...node,
-        position: {
-          x: dagreNode.x - size.width / 2,
-          y: dagreNode.y - size.height / 2,
-        },
-      };
-    });
+    return layoutDagreUtil(graph, direction, n => this.getNodeSize(n), this.config.layout?.options);
   }
 
   /** Compact layout — grid packing via topological order to minimize total area */
   private async layoutCompact(graph: Graph): Promise<GraphNode[]> {
-    if (graph.nodes.length === 0) return [];
-
-    // Build adjacency for topological sort
-    const inDegree = new Map<string, number>();
-    const children = new Map<string, string[]>();
-    for (const node of graph.nodes) {
-      inDegree.set(node.id, 0);
-      children.set(node.id, []);
-    }
-    for (const edge of graph.edges) {
-      inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
-      children.get(edge.source)?.push(edge.target);
-    }
-
-    // Kahn's algorithm — topological sort (BFS)
-    const queue: string[] = [];
-    for (const node of graph.nodes) {
-      if ((inDegree.get(node.id) ?? 0) === 0) queue.push(node.id);
-    }
-    const sorted: string[] = [];
-    while (queue.length > 0) {
-      const id = queue.shift()!;
-      sorted.push(id);
-      for (const child of children.get(id) ?? []) {
-        const deg = (inDegree.get(child) ?? 1) - 1;
-        inDegree.set(child, deg);
-        if (deg === 0) queue.push(child);
-      }
-    }
-    // Append any remaining nodes (cycles)
-    for (const node of graph.nodes) {
-      if (!sorted.includes(node.id)) sorted.push(node.id);
-    }
-
-    // Compute max node dimensions for uniform grid cells
-    const sizes = new Map<string, { width: number; height: number }>();
-    let maxW = 0, maxH = 0;
-    for (const node of graph.nodes) {
-      const size = this.getNodeSize(node);
-      sizes.set(node.id, size);
-      maxW = Math.max(maxW, size.width);
-      maxH = Math.max(maxH, size.height);
-    }
-
-    // Determine grid columns: aim for roughly square aspect ratio
-    // 1→1, 2-3→2, 4-6→2, 7-12→3, 13-20→4, etc.
-    const cols = Math.max(1, Math.round(Math.sqrt(sorted.length)));
-    const gapX = 30;
-    const gapY = 40;
-    const cellW = maxW + gapX;
-    const cellH = maxH + gapY;
-
-    // Place nodes in grid, centering each within its cell
-    const positions = new Map<string, { x: number; y: number }>();
-    for (let i = 0; i < sorted.length; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const size = sizes.get(sorted[i])!;
-      positions.set(sorted[i], {
-        x: col * cellW + (maxW - size.width) / 2,
-        y: row * cellH + (maxH - size.height) / 2,
-      });
-    }
-
-    return graph.nodes.map(node => ({
-      ...node,
-      position: positions.get(node.id) ?? node.position,
-    }));
+    return layoutCompactUtil(graph, n => this.getNodeSize(n));
   }
 
   /** Shared post-layout: recalculate edge ports, update graph, emit change, fit to screen */
@@ -925,7 +843,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         // Find which segment the new point falls on
         let bestSeg = 0, bestDist = Infinity;
         for (let i = 0; i < polyline.length - 1; i++) {
-          const d = this.pointToSegmentDistance(preview.position, polyline[i], polyline[i + 1]);
+          const d = pointToSegmentDistance(preview.position, polyline[i], polyline[i + 1]);
           if (d < bestDist) { bestDist = d; bestSeg = i; }
         }
 
@@ -1765,211 +1683,21 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     dragSize: { width: number; height: number },
     draggedIds: Set<string>
   ): { snappedPos: Position; guides: GuideLine[] } {
-    const SNAP_THRESHOLD = 5 / this.scale(); // 5px in screen space, adjusted for zoom
-    const DISTANCE_LIMIT = 500; // Skip nodes too far away (canvas px)
-
-    const graph = this.internalGraph();
-    const otherNodes = graph.nodes.filter(n => !draggedIds.has(n.id));
-
-    // Dragged rect reference lines
-    const dragLeft = candidatePos.x;
-    const dragRight = candidatePos.x + dragSize.width;
-    const dragCx = candidatePos.x + dragSize.width / 2;
-    const dragTop = candidatePos.y;
-    const dragBottom = candidatePos.y + dragSize.height;
-    const dragCy = candidatePos.y + dragSize.height / 2;
-
-    // Collect best snaps per axis
-    let bestSnapX: { delta: number; guides: GuideLine[] } | null = null;
-    let bestSnapY: { delta: number; guides: GuideLine[] } | null = null;
-
-    for (const other of otherNodes) {
-      const otherSize = this.getNodeSize(other);
-      const ox = other.position.x;
-      const oy = other.position.y;
-
-      // Early distance cull
-      if (Math.abs(dragCx - (ox + otherSize.width / 2)) > DISTANCE_LIMIT &&
-          Math.abs(dragCy - (oy + otherSize.height / 2)) > DISTANCE_LIMIT) {
-        continue;
-      }
-
-      const otherLeft = ox;
-      const otherRight = ox + otherSize.width;
-      const otherCx = ox + otherSize.width / 2;
-      const otherTop = oy;
-      const otherBottom = oy + otherSize.height;
-      const otherCy = oy + otherSize.height / 2;
-
-      // Vertical alignment candidates (snap X axis)
-      const vCandidates: { delta: number; dragRef: number; otherRef: number }[] = [
-        { delta: otherLeft - dragLeft, dragRef: dragLeft, otherRef: otherLeft },         // left-left
-        { delta: otherRight - dragRight, dragRef: dragRight, otherRef: otherRight },     // right-right
-        { delta: otherLeft - dragRight, dragRef: dragRight, otherRef: otherLeft },       // right-left
-        { delta: otherRight - dragLeft, dragRef: dragLeft, otherRef: otherRight },       // left-right
-        { delta: otherCx - dragCx, dragRef: dragCx, otherRef: otherCx },                // center-center
-      ];
-
-      for (const vc of vCandidates) {
-        const absDelta = Math.abs(vc.delta);
-        if (absDelta > SNAP_THRESHOLD) continue;
-        if (!bestSnapX || absDelta < Math.abs(bestSnapX.delta)) {
-          // Vertical guide line at the snap X position
-          const guideX = vc.otherRef;
-          const minY = Math.min(dragTop + vc.delta, otherTop) - 20;
-          const maxY = Math.max(dragBottom + vc.delta, otherBottom) + 20;
-          bestSnapX = {
-            delta: vc.delta,
-            guides: [{ x1: guideX, y1: minY, x2: guideX, y2: maxY, orientation: 'vertical' }]
-          };
-        }
-      }
-
-      // Horizontal alignment candidates (snap Y axis)
-      const hCandidates: { delta: number; dragRef: number; otherRef: number }[] = [
-        { delta: otherTop - dragTop, dragRef: dragTop, otherRef: otherTop },             // top-top
-        { delta: otherBottom - dragBottom, dragRef: dragBottom, otherRef: otherBottom },  // bottom-bottom
-        { delta: otherTop - dragBottom, dragRef: dragBottom, otherRef: otherTop },        // bottom-top
-        { delta: otherBottom - dragTop, dragRef: dragTop, otherRef: otherBottom },        // top-bottom
-        { delta: otherCy - dragCy, dragRef: dragCy, otherRef: otherCy },                 // center-center
-      ];
-
-      for (const hc of hCandidates) {
-        const absDelta = Math.abs(hc.delta);
-        if (absDelta > SNAP_THRESHOLD) continue;
-        if (!bestSnapY || absDelta < Math.abs(bestSnapY.delta)) {
-          const guideY = hc.otherRef;
-          const minX = Math.min(dragLeft + (bestSnapX?.delta ?? 0), otherLeft) - 20;
-          const maxX = Math.max(dragRight + (bestSnapX?.delta ?? 0), otherRight) + 20;
-          bestSnapY = {
-            delta: hc.delta,
-            guides: [{ x1: minX, y1: guideY, x2: maxX, y2: guideY, orientation: 'horizontal' }]
-          };
-        }
-      }
-    }
-
-    const snappedPos: Position = {
-      x: candidatePos.x + (bestSnapX?.delta ?? 0),
-      y: candidatePos.y + (bestSnapY?.delta ?? 0)
-    };
-
-    const guides: GuideLine[] = [
-      ...(bestSnapX?.guides ?? []),
-      ...(bestSnapY?.guides ?? [])
-    ];
-
-    return { snappedPos, guides };
+    return computeSnapGuidesUtil(
+      candidatePos, dragSize, draggedIds,
+      this.internalGraph().nodes, n => this.getNodeSize(n), this.scale()
+    );
   }
 
-  /**
-   * Compute snap guides during node resize.
-   * Position (top-left) is fixed; only width/height change.
-   * Snaps the right edge, bottom edge, and center of the resizing node
-   * to edges/centers of other nodes.
-   */
   private computeResizeSnapGuides(
     nodePos: Position,
     candidateSize: { width: number; height: number },
     draggedIds: Set<string>
   ): { snappedSize: { width: number; height: number }; guides: GuideLine[] } {
-    const SNAP_THRESHOLD = 5 / this.scale();
-    const DISTANCE_LIMIT = 500;
-
-    const graph = this.internalGraph();
-    const otherNodes = graph.nodes.filter(n => !draggedIds.has(n.id));
-
-    // Resizing node reference lines
-    const left = nodePos.x;
-    const top = nodePos.y;
-    const right = left + candidateSize.width;
-    const bottom = top + candidateSize.height;
-    const cx = left + candidateSize.width / 2;
-    const cy = top + candidateSize.height / 2;
-
-    let bestSnapW: { delta: number; guides: GuideLine[] } | null = null;
-    let bestSnapH: { delta: number; guides: GuideLine[] } | null = null;
-
-    for (const other of otherNodes) {
-      const otherSize = this.getNodeSize(other);
-      const ox = other.position.x;
-      const oy = other.position.y;
-
-      if (Math.abs(cx - (ox + otherSize.width / 2)) > DISTANCE_LIMIT &&
-          Math.abs(cy - (oy + otherSize.height / 2)) > DISTANCE_LIMIT) {
-        continue;
-      }
-
-      const otherLeft = ox;
-      const otherRight = ox + otherSize.width;
-      const otherCx = ox + otherSize.width / 2;
-      const otherTop = oy;
-      const otherBottom = oy + otherSize.height;
-      const otherCy = oy + otherSize.height / 2;
-
-      // Width snap candidates: snap right edge or center-x to other nodes
-      const wCandidates = [
-        { delta: otherLeft - right, ref: otherLeft },     // right → other left
-        { delta: otherRight - right, ref: otherRight },   // right → other right
-        { delta: otherCx - right, ref: otherCx },         // right → other center
-        { delta: otherCx - cx, ref: otherCx },            // center → other center (adjusts width by 2×delta)
-      ];
-
-      for (let i = 0; i < wCandidates.length; i++) {
-        const wc = wCandidates[i];
-        const absDelta = Math.abs(wc.delta);
-        if (absDelta > SNAP_THRESHOLD) continue;
-        // For center-center alignment, the width change is 2× the delta
-        const isCenter = i === 3;
-        const widthDelta = isCenter ? wc.delta * 2 : wc.delta;
-        if (!bestSnapW || absDelta < Math.abs(bestSnapW.delta)) {
-          const guideX = wc.ref;
-          const minY = Math.min(top, otherTop) - 20;
-          const maxY = Math.max(bottom + widthDelta, otherBottom) + 20;
-          bestSnapW = {
-            delta: widthDelta,
-            guides: [{ x1: guideX, y1: minY, x2: guideX, y2: maxY, orientation: 'vertical' }]
-          };
-        }
-      }
-
-      // Height snap candidates: snap bottom edge or center-y to other nodes
-      const hCandidates = [
-        { delta: otherTop - bottom, ref: otherTop },       // bottom → other top
-        { delta: otherBottom - bottom, ref: otherBottom },  // bottom → other bottom
-        { delta: otherCy - bottom, ref: otherCy },          // bottom → other center
-        { delta: otherCy - cy, ref: otherCy },              // center → other center (adjusts height by 2×delta)
-      ];
-
-      for (let i = 0; i < hCandidates.length; i++) {
-        const hc = hCandidates[i];
-        const absDelta = Math.abs(hc.delta);
-        if (absDelta > SNAP_THRESHOLD) continue;
-        const isCenter = i === 3;
-        const heightDelta = isCenter ? hc.delta * 2 : hc.delta;
-        if (!bestSnapH || absDelta < Math.abs(bestSnapH.delta)) {
-          const guideY = hc.ref;
-          const minX = Math.min(left, otherLeft) - 20;
-          const maxX = Math.max(right + (bestSnapW?.delta ?? 0), otherRight) + 20;
-          bestSnapH = {
-            delta: heightDelta,
-            guides: [{ x1: minX, y1: guideY, x2: maxX, y2: guideY, orientation: 'horizontal' }]
-          };
-        }
-      }
-    }
-
-    const snappedSize = {
-      width: candidateSize.width + (bestSnapW?.delta ?? 0),
-      height: candidateSize.height + (bestSnapH?.delta ?? 0)
-    };
-
-    const guides: GuideLine[] = [
-      ...(bestSnapW?.guides ?? []),
-      ...(bestSnapH?.guides ?? [])
-    ];
-
-    return { snappedSize, guides };
+    return computeResizeSnapGuidesUtil(
+      nodePos, candidateSize, draggedIds,
+      this.internalGraph().nodes, n => this.getNodeSize(n), this.scale()
+    );
   }
 
   /** Copy selected nodes and their internal edges to the internal clipboard. */
@@ -2120,214 +1848,15 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (edge.waypoints && edge.waypoints.length > 0) {
       const points = [s, ...edge.waypoints, t];
       const pathType = this.activeEdgePathType;
-      if (pathType === 'bezier') {
-        return this.buildSmoothBezierThroughPoints(points);
-      }
-      if (pathType === 'step') {
-        return this.buildStepThroughPoints(points, sourcePort, targetPort);
-      }
-      return this.buildRoundedPolyline(points);
+      if (pathType === 'bezier') return buildSmoothBezierThroughPoints(points);
+      if (pathType === 'step') return buildStepThroughPoints(points, sourcePort, targetPort);
+      return buildRoundedPolyline(points);
     }
 
     const pathType = this.activeEdgePathType;
-
-    if (pathType === 'bezier') {
-      const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
-      const sc = this.getPortControlOffset(sourcePort, offset);
-      const tc = this.getPortControlOffset(targetPort, offset);
-      // Blend a small cross-axis component so the bezier tangent at endpoints
-      // isn't purely axis-aligned — this makes arrowheads follow the curve naturally.
-      const crossBias = 0.15;
-      const dx = t.x - s.x;
-      const dy = t.y - s.y;
-      const sc1x = s.x + sc.dx + (sc.dx !== 0 ? 0 : dx * crossBias);
-      const sc1y = s.y + sc.dy + (sc.dy !== 0 ? 0 : dy * crossBias);
-      const tc1x = t.x + tc.dx + (tc.dx !== 0 ? 0 : dx * -crossBias);
-      const tc1y = t.y + tc.dy + (tc.dy !== 0 ? 0 : dy * -crossBias);
-      return `M ${s.x},${s.y} C ${sc1x},${sc1y} ${tc1x},${tc1y} ${t.x},${t.y}`;
-    }
-
-    if (pathType === 'step') {
-      const midX = (s.x + t.x) / 2;
-      const midY = (s.y + t.y) / 2;
-      const sourceSide = this.getPortSide(sourcePort);
-      const targetSide = this.getPortSide(targetPort);
-      const isSourceVertical = sourceSide === 'top' || sourceSide === 'bottom';
-      const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
-
-      if (isSourceVertical && isTargetVertical) {
-        return `M ${s.x},${s.y} L ${s.x},${midY} L ${t.x},${midY} L ${t.x},${t.y}`;
-      } else if (!isSourceVertical && !isTargetVertical) {
-        return `M ${s.x},${s.y} L ${midX},${s.y} L ${midX},${t.y} L ${t.x},${t.y}`;
-      } else if (isSourceVertical) {
-        return `M ${s.x},${s.y} L ${s.x},${t.y} L ${t.x},${t.y}`;
-      } else {
-        return `M ${s.x},${s.y} L ${t.x},${s.y} L ${t.x},${t.y}`;
-      }
-    }
-
-    return `M ${s.x},${s.y} L ${t.x},${t.y}`;
-  }
-
-  /** Build a rounded polyline path through a series of points with smooth corners. */
-  private buildRoundedPolyline(points: Position[]): string {
-    if (points.length < 2) return '';
-    if (points.length === 2) {
-      return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
-    }
-
-    const radius = 8; // Corner radius for rounded bends
-    let d = `M ${points[0].x},${points[0].y}`;
-
-    for (let i = 1; i < points.length - 1; i++) {
-      const prev = points[i - 1];
-      const curr = points[i];
-      const next = points[i + 1];
-
-      // Vectors from current point to prev and next
-      const dx1 = prev.x - curr.x;
-      const dy1 = prev.y - curr.y;
-      const dx2 = next.x - curr.x;
-      const dy2 = next.y - curr.y;
-
-      const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
-      const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
-
-      if (len1 === 0 || len2 === 0) {
-        d += ` L ${curr.x},${curr.y}`;
-        continue;
-      }
-
-      // Clamp radius to half the shortest adjacent segment
-      const r = Math.min(radius, len1 / 2, len2 / 2);
-
-      // Points where the arc starts and ends
-      const startX = curr.x + (dx1 / len1) * r;
-      const startY = curr.y + (dy1 / len1) * r;
-      const endX = curr.x + (dx2 / len2) * r;
-      const endY = curr.y + (dy2 / len2) * r;
-
-      d += ` L ${startX},${startY}`;
-      d += ` Q ${curr.x},${curr.y} ${endX},${endY}`;
-    }
-
-    const last = points[points.length - 1];
-    d += ` L ${last.x},${last.y}`;
-
-    return d;
-  }
-
-  /**
-   * Build a smooth bezier curve that passes through all points using
-   * Catmull-Rom to quadratic bezier conversion.
-   *
-   * For each interior point, we compute the Catmull-Rom tangent and convert
-   * to a quadratic control point so the curve runs smoothly through the waypoint.
-   */
-  private buildSmoothBezierThroughPoints(points: Position[]): string {
-    if (points.length < 2) return '';
-    if (points.length === 2) {
-      return `M ${points[0].x},${points[0].y} L ${points[1].x},${points[1].y}`;
-    }
-    if (points.length === 3) {
-      // Single waypoint — one quadratic curve through the waypoint
-      const [p0, p1, p2] = points;
-      // Compute quadratic control point so the curve passes through p1:
-      // For a quadratic bezier B(0.5) = (P0 + 2*C + P2)/4 = p1
-      // => C = 2*p1 - (P0 + P2)/2
-      const cx = 2 * p1.x - (p0.x + p2.x) / 2;
-      const cy = 2 * p1.y - (p0.y + p2.y) / 2;
-      return `M ${p0.x},${p0.y} Q ${cx},${cy} ${p2.x},${p2.y}`;
-    }
-
-    // For 4+ points, use Catmull-Rom splines converted to cubic bezier segments.
-    // This guarantees the curve passes through every point smoothly.
-    const tension = 0.5; // Catmull-Rom tension
-    let d = `M ${points[0].x},${points[0].y}`;
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[Math.max(0, i - 1)];
-      const p1 = points[i];
-      const p2 = points[i + 1];
-      const p3 = points[Math.min(points.length - 1, i + 2)];
-
-      // Catmull-Rom tangent vectors
-      const t1x = tension * (p2.x - p0.x);
-      const t1y = tension * (p2.y - p0.y);
-      const t2x = tension * (p3.x - p1.x);
-      const t2y = tension * (p3.y - p1.y);
-
-      // Convert to cubic bezier control points
-      const cp1x = p1.x + t1x / 3;
-      const cp1y = p1.y + t1y / 3;
-      const cp2x = p2.x - t2x / 3;
-      const cp2y = p2.y - t2y / 3;
-
-      d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
-    }
-
-    return d;
-  }
-
-  /**
-   * Build an orthogonal step path through waypoints.
-   * First and last segments respect the port side direction.
-   * All segments are strictly horizontal or vertical.
-   */
-  private buildStepThroughPoints(points: Position[], sourcePort: string, targetPort: string): string {
-    if (points.length < 2) return '';
-
-    const sourceSide = this.getPortSide(sourcePort);
-    const targetSide = this.getPortSide(targetPort);
-
-    // For each pair of consecutive points, route orthogonally (H then V, or V then H)
-    // The first segment's initial direction is determined by the source port side.
-    // The last segment's final direction is determined by the target port side.
-    const result: Position[] = [points[0]];
-
-    for (let i = 0; i < points.length - 1; i++) {
-      const from = points[i];
-      const to = points[i + 1];
-
-      // Skip if points are the same
-      if (from.x === to.x && from.y === to.y) continue;
-
-      // Determine whether to go horizontal-first or vertical-first
-      let horizontalFirst: boolean;
-
-      if (i === 0) {
-        // First segment: direction determined by source port
-        horizontalFirst = sourceSide === 'left' || sourceSide === 'right';
-      } else if (i === points.length - 2) {
-        // Last segment: approach target port correctly
-        // If target is top/bottom, we need to arrive vertically → go horizontal first
-        // If target is left/right, we need to arrive horizontally → go vertical first
-        horizontalFirst = targetSide === 'top' || targetSide === 'bottom';
-      } else {
-        // Middle segments: alternate based on which delta is larger
-        horizontalFirst = Math.abs(to.x - from.x) >= Math.abs(to.y - from.y);
-      }
-
-      if (from.x === to.x || from.y === to.y) {
-        // Already aligned — just go straight
-        result.push(to);
-      } else if (horizontalFirst) {
-        // Go horizontal, then vertical
-        result.push({ x: to.x, y: from.y });
-        result.push(to);
-      } else {
-        // Go vertical, then horizontal
-        result.push({ x: from.x, y: to.y });
-        result.push(to);
-      }
-    }
-
-    // Build SVG path from orthogonal points
-    let d = `M ${result[0].x},${result[0].y}`;
-    for (let i = 1; i < result.length; i++) {
-      d += ` L ${result[i].x},${result[i].y}`;
-    }
-    return d;
+    if (pathType === 'bezier') return buildBezierPath(s, t, sourcePort, targetPort);
+    if (pathType === 'step') return buildStepPath(s, t, sourcePort, targetPort);
+    return buildStraightPath(s, t);
   }
 
   /** Active edge path type — runtime override takes precedence over theme. */
@@ -2344,23 +1873,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   // Port spacing/margin — resolved from theme config
   private get portSpacing(): number { return this.resolvedTheme?.port.spacing ?? 75; }
   private get portMargin(): number { return this.resolvedTheme?.port.margin ?? 15; }
-
-  /** Extract the side name from a port ID (e.g. 'top-1' → 'top', 'left' → 'left'). */
-  private getPortSide(port: string): 'top' | 'bottom' | 'left' | 'right' {
-    const side = port.split('-')[0] as 'top' | 'bottom' | 'left' | 'right';
-    return side;
-  }
-
-  /** Get the control point offset direction for a port (used by bezier path). */
-  private getPortControlOffset(port: string, offset: number): { dx: number; dy: number } {
-    const side = this.getPortSide(port);
-    switch (side) {
-      case 'top': return { dx: 0, dy: -offset };
-      case 'bottom': return { dx: 0, dy: offset };
-      case 'left': return { dx: -offset, dy: 0 };
-      case 'right': return { dx: offset, dy: 0 };
-    }
-  }
 
   getEdgeColor(edge: GraphEdge): string {
     return edge.metadata?.style?.stroke || this.resolvedTheme.edge.stroke;
@@ -2548,23 +2060,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
    * Uses same positioning logic as icon but accounts for image dimensions.
    */
   getImagePosition(node: GraphNode): Position {
-    const size = this.getNodeSize(node);
-    const imageSize = this.getImageSize(node);
-    const pos = this.config.nodes.iconPosition || 'top-left';
-    const padding = 8;
-
-    const positions: Record<string, Position> = {
-      'top-left': { x: padding, y: padding },
-      'top': { x: (size.width - imageSize) / 2, y: padding },
-      'top-right': { x: size.width - imageSize - padding, y: padding },
-      'right': { x: size.width - imageSize - padding, y: (size.height - imageSize) / 2 },
-      'bottom-right': { x: size.width - imageSize - padding, y: size.height - imageSize - padding },
-      'bottom': { x: (size.width - imageSize) / 2, y: size.height - imageSize - padding },
-      'bottom-left': { x: padding, y: size.height - imageSize - padding },
-      'left': { x: padding, y: (size.height - imageSize) / 2 }
-    };
-
-    return positions[pos] || positions['top-left'];
+    return getNodeImagePosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
   }
 
   /**
@@ -2572,49 +2068,15 @@ export class GraphEditorComponent implements OnInit, OnChanges {
    * Images are rendered as squares, sized proportionally to node height.
    */
   getImageSize(node: GraphNode): number {
-    const size = this.getNodeSize(node);
-    // Image takes up ~40% of node height, with min 24px and max 64px
-    return Math.min(64, Math.max(24, size.height * 0.4));
+    return getNodeImageSize(this.getNodeSize(node));
   }
 
   getIconPosition(node: GraphNode): Position {
-    const size = this.getNodeSize(node);
-    const pos = this.config.nodes.iconPosition || 'top-left';
-    const padding = size.height * 0.25;
-    const iconSize = size.height * 0.28;
-
-    const positions: Record<string, Position> = {
-      'top-left': { x: padding, y: padding },
-      'top': { x: size.width / 2, y: padding },
-      'top-right': { x: size.width - padding, y: padding },
-      'right': { x: size.width - padding, y: size.height / 2 },
-      'bottom-right': { x: size.width - padding, y: size.height - padding },
-      'bottom': { x: size.width / 2, y: size.height - padding },
-      'bottom-left': { x: padding, y: size.height - padding },
-      'left': { x: padding, y: size.height / 2 }
-    };
-
-    return positions[pos] || positions['left'];
+    return getNodeIconPosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
   }
 
   getLabelPosition(node: GraphNode): Position {
-    const size = this.getNodeSize(node);
-    const pos = this.config.nodes.iconPosition || 'top-left';
-    const padding = size.height * 0.25;
-
-    // Label position adjusts based on icon position
-    const labelPositions: Record<string, Position> = {
-      'top-left': { x: size.width / 2 + padding / 2, y: size.height / 2 + 4 },
-      'top': { x: size.width / 2, y: size.height / 2 + padding / 2 },
-      'top-right': { x: size.width / 2 - padding / 2, y: size.height / 2 + 4 },
-      'right': { x: size.width / 2 - padding / 2, y: size.height / 2 },
-      'bottom-right': { x: size.width / 2 - padding / 2, y: size.height / 2 - 4 },
-      'bottom': { x: size.width / 2, y: size.height / 2 - padding / 2 },
-      'bottom-left': { x: size.width / 2 + padding / 2, y: size.height / 2 - 4 },
-      'left': { x: size.width / 2 + padding / 2, y: size.height / 2 }
-    };
-
-    return labelPositions[pos] || labelPositions['top-left'];
+    return getNodeLabelPosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
   }
 
   /**
@@ -2623,43 +2085,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
    */
   getLabelBounds(node: GraphNode): { x: number; y: number; width: number; height: number } {
     const size = this.getNodeSize(node);
-    const iconPos = this.config.nodes.iconPosition || 'top-left';
-    const padding = 12; // Padding from node edges
-    const iconAreaSize = Math.max(this.getImageSize(node), size.height * 0.35) + 8; // Icon + gap
-    
-    // Default: full node minus padding
-    let x = padding;
-    let y = padding;
-    let width = size.width - padding * 2;
-    let height = size.height - padding * 2;
-    
-    // Adjust based on icon position
-    switch (iconPos) {
-      case 'top-left':
-      case 'left':
-      case 'bottom-left':
-        // Icon on left - text area starts after icon
-        x = iconAreaSize + padding / 2;
-        width = size.width - iconAreaSize - padding - padding / 2;
-        break;
-      case 'top-right':
-      case 'right':
-      case 'bottom-right':
-        // Icon on right - text area ends before icon
-        width = size.width - iconAreaSize - padding - padding / 2;
-        break;
-      case 'top':
-        // Icon on top - text area below icon
-        y = iconAreaSize + padding / 2;
-        height = size.height - iconAreaSize - padding - padding / 2;
-        break;
-      case 'bottom':
-        // Icon on bottom - text area above icon
-        height = size.height - iconAreaSize - padding - padding / 2;
-        break;
-    }
-    
-    return { x, y, width: Math.max(width, 20), height: Math.max(height, 20) };
+    return getNodeLabelBounds(size, this.getImageSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
   }
 
   /**
@@ -2669,96 +2095,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   getWrappedLabel(node: GraphNode): { lines: string[]; fontSize: number; lineHeight: number } {
     const text = (node.data['name'] || node.type) as string;
     const bounds = this.getLabelBounds(node);
-    const baseFontSize = 14;
-    const minFontSize = 9;
-    const lineHeightRatio = 1.3;
-    
-    // Try wrapping at current font size, then reduce if needed
-    for (let fontSize = baseFontSize; fontSize >= minFontSize; fontSize -= 1) {
-      const charWidth = fontSize * 0.6; // Approximate character width
-      const lineHeight = fontSize * lineHeightRatio;
-      const maxCharsPerLine = Math.floor(bounds.width / charWidth);
-      const maxLines = Math.floor(bounds.height / lineHeight);
-      
-      if (maxCharsPerLine < 3 || maxLines < 1) continue;
-      
-      const lines = this.wrapText(text, maxCharsPerLine);
-      
-      // Check if text fits
-      if (lines.length <= maxLines) {
-        return { lines, fontSize, lineHeight };
-      }
-      
-      // If at minimum font size, truncate
-      if (fontSize === minFontSize) {
-        const truncatedLines = lines.slice(0, maxLines);
-        if (lines.length > maxLines && truncatedLines.length > 0) {
-          // Add ellipsis to last line
-          const lastLine = truncatedLines[truncatedLines.length - 1];
-          if (lastLine.length > 3) {
-            truncatedLines[truncatedLines.length - 1] = lastLine.slice(0, -3) + '...';
-          }
-        }
-        return { lines: truncatedLines, fontSize, lineHeight };
-      }
-    }
-    
-    // Fallback
-    return { lines: [text], fontSize: minFontSize, lineHeight: minFontSize * lineHeightRatio };
-  }
-
-  /**
-   * Wrap text into lines respecting max characters per line.
-   * Tries to break at word boundaries.
-   */
-  private wrapText(text: string, maxCharsPerLine: number): string[] {
-    if (text.length <= maxCharsPerLine) {
-      return [text];
-    }
-    
-    const words = text.split(/\s+/);
-    const lines: string[] = [];
-    let currentLine = '';
-    
-    for (const word of words) {
-      if (currentLine.length === 0) {
-        // First word on line
-        if (word.length > maxCharsPerLine) {
-          // Word too long, break it
-          let remaining = word;
-          while (remaining.length > maxCharsPerLine) {
-            lines.push(remaining.slice(0, maxCharsPerLine - 1) + '-');
-            remaining = remaining.slice(maxCharsPerLine - 1);
-          }
-          currentLine = remaining;
-        } else {
-          currentLine = word;
-        }
-      } else if (currentLine.length + 1 + word.length <= maxCharsPerLine) {
-        // Word fits on current line
-        currentLine += ' ' + word;
-      } else {
-        // Start new line
-        lines.push(currentLine);
-        if (word.length > maxCharsPerLine) {
-          // Word too long, break it
-          let remaining = word;
-          while (remaining.length > maxCharsPerLine) {
-            lines.push(remaining.slice(0, maxCharsPerLine - 1) + '-');
-            remaining = remaining.slice(maxCharsPerLine - 1);
-          }
-          currentLine = remaining;
-        } else {
-          currentLine = word;
-        }
-      }
-    }
-    
-    if (currentLine.length > 0) {
-      lines.push(currentLine);
-    }
-    
-    return lines;
+    return getWrappedNodeLabel(text, bounds);
   }
 
   /**
@@ -2801,7 +2138,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const targetPoint = this.getEdgeTargetPoint(edge);
 
       // Calculate distance from point to line segment
-      const dist = this.pointToSegmentDistance(pos, sourcePoint, targetPoint);
+      const dist = pointToSegmentDistance(pos, sourcePoint, targetPoint);
       if (dist < hitDistance) {
         return edge.id;
       }
@@ -2809,57 +2146,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return null;
   }
 
-  private pointToSegmentDistance(point: Position, lineStart: Position, lineEnd: Position): number {
-    const dx = lineEnd.x - lineStart.x;
-    const dy = lineEnd.y - lineStart.y;
-    const lengthSquared = dx * dx + dy * dy;
-
-    if (lengthSquared === 0) {
-      // Line segment is a point
-      return Math.sqrt((point.x - lineStart.x) ** 2 + (point.y - lineStart.y) ** 2);
-    }
-
-    // Project point onto line segment
-    let t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / lengthSquared;
-    t = Math.max(0, Math.min(1, t));
-
-    const projX = lineStart.x + t * dx;
-    const projY = lineStart.y + t * dy;
-
-    return Math.sqrt((point.x - projX) ** 2 + (point.y - projY) ** 2);
-  }
-
-  /** Compute evenly-spaced port positions along a side, always including the center. */
-  private computePortPositions(sideLength: number): number[] {
-    const center = sideLength / 2;
-    const positions: number[] = [center];
-    // Add symmetric pairs outward from center until hitting margin boundary
-    let offset = this.portSpacing;
-    while (center - offset >= this.portMargin && center + offset <= sideLength - this.portMargin) {
-      positions.unshift(center - offset);
-      positions.push(center + offset);
-      offset += this.portSpacing;
-    }
-    return positions;
-  }
-
   getNodePorts(node: GraphNode): Array<{ position: string; x: number; y: number }> {
-    const size = this.getNodeSize(node);
-    const ports: Array<{ position: string; x: number; y: number }> = [];
-
-    const hPositions = this.computePortPositions(size.width);
-    const vPositions = this.computePortPositions(size.height);
-
-    // Top side: ports along x at y=0
-    hPositions.forEach((x: number, i: number) => ports.push({ position: `top-${i}`, x, y: 0 }));
-    // Bottom side: ports along x at y=height
-    hPositions.forEach((x: number, i: number) => ports.push({ position: `bottom-${i}`, x, y: size.height }));
-    // Left side: ports along y at x=0
-    vPositions.forEach((y: number, i: number) => ports.push({ position: `left-${i}`, x: 0, y }));
-    // Right side: ports along y at x=width
-    vPositions.forEach((y: number, i: number) => ports.push({ position: `right-${i}`, x: size.width, y }));
-
-    return ports;
+    return getNodePortsUtil(this.getNodeSize(node), this.portSpacing, this.portMargin);
   }
 
   private findClosestPort(nodeId: string, worldPos: Position): { port: string; distance: number } | null {
@@ -2887,37 +2175,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   private getPortWorldPosition(node: GraphNode, port: string): Position {
-    const size = this.getNodeSize(node);
-    const side = this.getPortSide(port);
-    const parts = port.split('-');
-    const index = parts.length > 1 ? parseInt(parts[1], 10) : -1;
-
-    // Legacy port IDs ('top', 'bottom', 'left', 'right') resolve to center of side
-    if (index < 0 || isNaN(index)) {
-      const legacyOffsets: Record<string, { x: number; y: number }> = {
-        top: { x: size.width / 2, y: 0 },
-        bottom: { x: size.width / 2, y: size.height },
-        left: { x: 0, y: size.height / 2 },
-        right: { x: size.width, y: size.height / 2 }
-      };
-      const offset = legacyOffsets[side] || { x: size.width / 2, y: 0 };
-      return { x: node.position.x + offset.x, y: node.position.y + offset.y };
-    }
-
-    // New-style port IDs: compute position using shared algorithm
-    let offsetX = 0;
-    let offsetY = 0;
-    if (side === 'top' || side === 'bottom') {
-      const hPositions = this.computePortPositions(size.width);
-      offsetX = hPositions[Math.min(index, hPositions.length - 1)];
-      offsetY = side === 'top' ? 0 : size.height;
-    } else {
-      const vPositions = this.computePortPositions(size.height);
-      offsetX = side === 'left' ? 0 : size.width;
-      offsetY = vPositions[Math.min(index, vPositions.length - 1)];
-    }
-
-    return { x: node.position.x + offsetX, y: node.position.y + offsetY };
+    return getPortWorldPositionUtil(node, port, this.getNodeSize(node), this.portSpacing, this.portMargin);
   }
 
   /**
@@ -2929,6 +2187,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     nodes: GraphNode[],
     affectsEdge: (edge: GraphEdge) => boolean
   ): GraphEdge[] {
+    const sizeFn = (n: GraphNode) => this.getNodeSize(n);
+    const sp = this.portSpacing;
+    const mg = this.portMargin;
+
     return edges.reduce<GraphEdge[]>((acc, edge) => {
       if (!affectsEdge(edge)) { acc.push(edge); return acc; }
 
@@ -2936,33 +2198,30 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       const targetNode = nodes.find(n => n.id === edge.target);
       if (!sourceNode || !targetNode) { acc.push(edge); return acc; }
 
-      // Collect port pairs already used by sibling edges between the same node pair
       const usedPortPairs = new Set<string>();
       for (const other of acc) {
         if ((other.source === edge.source && other.target === edge.target) ||
             (other.source === edge.target && other.target === edge.source)) {
-          const sp = other.sourcePort ?? '';
-          const tp = other.targetPort ?? '';
-          usedPortPairs.add(`${sp}|${tp}`);
-          usedPortPairs.add(`${tp}|${sp}`); // Also block the reverse
+          const sPort = other.sourcePort ?? '';
+          const tPort = other.targetPort ?? '';
+          usedPortPairs.add(`${sPort}|${tPort}`);
+          usedPortPairs.add(`${tPort}|${sPort}`);
         }
       }
 
-      // Rank all source ports by how well they face the target
-      const rankedSourcePorts = this.rankPortsForEdge(sourceNode, targetNode);
-      const rankedTargetPorts = this.rankPortsForEdge(targetNode, sourceNode);
+      const rankedSourcePorts = rankPortsForEdge(sourceNode, targetNode, sizeFn, sp, mg);
+      const rankedTargetPorts = rankPortsForEdge(targetNode, sourceNode, sizeFn, sp, mg);
 
-      // Find the best non-conflicting combination
       let bestSourcePort = rankedSourcePorts[0];
       let bestTargetPort = rankedTargetPorts[0];
       let found = false;
 
-      for (const sp of rankedSourcePorts) {
-        for (const tp of rankedTargetPorts) {
-          const key = `${sp}|${tp}`;
+      for (const sPort of rankedSourcePorts) {
+        for (const tPort of rankedTargetPorts) {
+          const key = `${sPort}|${tPort}`;
           if (!usedPortPairs.has(key)) {
-            bestSourcePort = sp;
-            bestTargetPort = tp;
+            bestSourcePort = sPort;
+            bestTargetPort = tPort;
             found = true;
             break;
           }
@@ -2975,60 +2234,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     }, []);
   }
 
-  /**
-   * Rank all ports on a node by how well they face another node.
-   * Returns port position strings ordered best-to-worst.
-   */
-  private rankPortsForEdge(node: GraphNode, otherNode: GraphNode): string[] {
-    const nodeSize = this.getNodeSize(node);
-    const otherSize = this.getNodeSize(otherNode);
-    const nodeCenter: Position = {
-      x: node.position.x + nodeSize.width / 2,
-      y: node.position.y + nodeSize.height / 2
-    };
-    const otherCenter: Position = {
-      x: otherNode.position.x + otherSize.width / 2,
-      y: otherNode.position.y + otherSize.height / 2
-    };
-
-    const dirX = otherCenter.x - nodeCenter.x;
-    const dirY = otherCenter.y - nodeCenter.y;
-    const dirLen = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
-    const normDirX = dirX / dirLen;
-    const normDirY = dirY / dirLen;
-
-    const sideNormals: Record<string, { nx: number; ny: number }> = {
-      top: { nx: 0, ny: -1 },
-      bottom: { nx: 0, ny: 1 },
-      left: { nx: -1, ny: 0 },
-      right: { nx: 1, ny: 0 }
-    };
-
-    const ports = this.getNodePorts(node);
-    const scored: Array<{ position: string; score: number }> = [];
-
-    for (const p of ports) {
-      const side = this.getPortSide(p.position);
-      const normal = sideNormals[side];
-      const dot = normal.nx * normDirX + normal.ny * normDirY;
-      const wx = node.position.x + p.x;
-      const wy = node.position.y + p.y;
-      const dx = otherCenter.x - wx;
-      const dy = otherCenter.y - wy;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      scored.push({ position: p.position, score: dot + 1 / dist });
-    }
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map(s => s.position);
-  }
-
   private findClosestPortForEdge(
     node: GraphNode,
     otherNode: GraphNode,
     _endpoint: 'source' | 'target'
   ): string {
-    return this.rankPortsForEdge(node, otherNode)[0];
+    return findClosestPortForEdgeUtil(node, otherNode, n => this.getNodeSize(n), this.portSpacing, this.portMargin);
   }
 
   /** Get the component type for a node (from NodeTypeDefinition.component, if set). */
@@ -3095,8 +2306,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (pathType === 'bezier') {
       // Evaluate cubic bezier at t
       const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
-      const sc = this.getPortControlOffset(sourcePort, offset);
-      const tc = this.getPortControlOffset(targetPort, offset);
+      const sc = getPortControlOffset(sourcePort, offset);
+      const tc = getPortControlOffset(targetPort, offset);
       const crossBias = 0.15;
       const dx = t.x - s.x;
       const dy = t.y - s.y;
@@ -3115,8 +2326,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       // Evaluate piecewise linear step path at t
       const midX = (s.x + t.x) / 2;
       const midY = (s.y + t.y) / 2;
-      const sourceSide = this.getPortSide(sourcePort);
-      const targetSide = this.getPortSide(targetPort);
+      const sourceSide = getPortSide(sourcePort);
+      const targetSide = getPortSide(targetPort);
       const isSourceVertical = sourceSide === 'top' || sourceSide === 'bottom';
       const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
 
