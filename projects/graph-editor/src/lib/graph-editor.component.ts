@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   contentChild,
+  DestroyRef,
   ElementRef,
   EventEmitter,
   inject,
@@ -31,7 +32,8 @@ import {
 } from './utils/edge-path.utils';
 import {
   getNodeImageSize, getNodeImagePosition, getNodeIconPosition,
-  getNodeLabelPosition, getNodeLabelBounds, getWrappedNodeLabel, wrapText
+  getNodeLabelPosition, getNodeLabelBounds, getWrappedNodeLabel, wrapText,
+  IconPosition
 } from './utils/node-rendering.utils';
 import {
   computeSnapGuides as computeSnapGuidesUtil,
@@ -43,6 +45,16 @@ import {
   rankPortsForEdge, findClosestPortForEdge as findClosestPortForEdgeUtil
 } from './utils/port-geometry.utils';
 import { layoutDagre as layoutDagreUtil, layoutCompact as layoutCompactUtil } from './utils/layout-algorithms';
+
+// ── Constants ──
+const DOUBLE_CLICK_TIMEOUT_MS = 400;
+const PORT_SNAP_DISTANCE = 40;
+const EDGE_HIT_DISTANCE = 10;
+const WAYPOINT_HIT_DISTANCE = 20;
+const PASTE_OFFSET_PX = 30;
+const DEFAULT_NODE_SIZE = { width: 220, height: 100 };
+const FLY_IN_DURATION_MS = 400;
+const EDGE_LABEL_CHAR_WIDTH_RATIO = 0.62;
 
 /**
  * Main graph editor component.
@@ -96,6 +108,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private readonly canvasSvgRef = viewChild<ElementRef>('canvasSvg');
   private readonly edgeLabelInputRef = viewChild<ElementRef>('edgeLabelInput');
   private readonly historyService = inject(GraphHistoryService);
+  private readonly destroyRef = inject(DestroyRef);
 
   // Internal state
   internalGraph = signal<Graph>({ nodes: [], edges: [] });
@@ -240,8 +253,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   });
 
   private readonly hostEl = inject(ElementRef);
+  private destroyed = false;
 
-  constructor() {}
+  constructor() {
+    this.destroyRef.onDestroy(() => { this.destroyed = true; });
+  }
 
   ngOnChanges(changes: SimpleChanges) {
     // Sync graph input to internal signal
@@ -352,8 +368,8 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     // Cleanup ghost + animation class
     setTimeout(() => {
       ghost.remove();
-      this.flyInNodeId.set(null);
-    }, 400);
+      if (!this.destroyed) this.flyInNodeId.set(null);
+    }, FLY_IN_DURATION_MS);
   }
 
   removeNode(nodeId: string, removeAttachedEdges = false): void {
@@ -522,51 +538,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (event.key === 'Delete' || event.key === 'Backspace') {
       const sel = this.selection();
       if (sel.nodes.length === 0 && sel.edges.length === 0) return;
-
-      // Batch delete: remove all selected items atomically (single history entry)
-      const graph = this.internalGraph();
-      const nodeIdsToRemove = new Set(sel.nodes);
-      const edgeIdsToRemove = new Set(sel.edges);
-
-      // Collect removed items for events
-      const removedNodes = graph.nodes.filter(n => nodeIdsToRemove.has(n.id));
-      const removedEdges = graph.edges.filter(e => edgeIdsToRemove.has(e.id));
-
-      // Filter out selected nodes
-      const remainingNodes = graph.nodes.filter(n => !nodeIdsToRemove.has(n.id));
-
-      // Filter out selected edges AND edges connected to deleted nodes
-      const remainingEdges = graph.edges.filter(e =>
-        !edgeIdsToRemove.has(e.id) &&
-        !nodeIdsToRemove.has(e.source) &&
-        !nodeIdsToRemove.has(e.target)
-      );
-
-      // Find edges that were removed because they connected to deleted nodes
-      const additionalRemovedEdges = graph.edges.filter(e =>
-        !edgeIdsToRemove.has(e.id) &&
-        (nodeIdsToRemove.has(e.source) || nodeIdsToRemove.has(e.target))
-      );
-
-      // Update graph atomically (single history push)
-      this.internalGraph.set({ ...graph, nodes: remainingNodes, edges: remainingEdges });
-      this.emitGraphChange();
-
-      // Emit removal events
-      for (const edge of removedEdges) {
-        this.edgeRemoved.emit(edge);
-      }
-      for (const edge of additionalRemovedEdges) {
-        this.edgeRemoved.emit(edge);
-      }
-      for (const node of removedNodes) {
-        this.nodeRemoved.emit(node);
-      }
-
-      // Clear selection
-      this.selection.set({ nodes: [], edges: [] });
-      this.selectionChange.emit(this.selection());
-
+      this.deleteSelection();
       event.preventDefault();
       return;
     }
@@ -630,7 +602,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     // second click may hit a different element, preventing the native dblclick
     // from firing.  Detect double-click ourselves as a reliable fallback.
     const now = Date.now();
-    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < 400) {
+    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < DOUBLE_CLICK_TIMEOUT_MS) {
       // Treat as double-click
       this.lastEdgeClickId = null;
       this.lastEdgeClickTime = 0;
@@ -743,7 +715,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     this.internalGraph.set({ ...graph, nodes: updatedNodes, edges: updatedEdges });
     this.emitGraphChange();
-    setTimeout(() => this.fitToScreen());
+    setTimeout(() => { if (!this.destroyed) this.fitToScreen(); });
   }
 
   fitToScreen(padding = 40): void {
@@ -1118,7 +1090,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         const closestPort = this.findClosestPort(nodeId, { x: mouseX, y: mouseY });
 
         // Highlight port if within snap distance (40px)
-        if (closestPort && closestPort.distance < 40) {
+        if (closestPort && closestPort.distance < PORT_SNAP_DISTANCE) {
           this.hoveredPort = { nodeId, port: closestPort.port };
           this.hoveredNodeId = nodeId;
           // Snap drag point to port
@@ -1163,7 +1135,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
           // Find and highlight closest port
           const closestPort = this.findClosestPort(hoveredNodeId, { x: mouseX, y: mouseY });
-          if (closestPort && closestPort.distance < 40) {
+          if (closestPort && closestPort.distance < PORT_SNAP_DISTANCE) {
             this.hoveredPort = { nodeId: hoveredNodeId, port: closestPort.port };
             // Snap preview line to port
             const hoveredNode = this.internalGraph().nodes.find(n => n.id === hoveredNodeId);
@@ -1216,7 +1188,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         }
       }
 
-      if (bestDist < 20 && bestEdgeId && bestNearest) {
+      if (bestDist < WAYPOINT_HIT_DISTANCE && bestEdgeId && bestNearest) {
         this.waypointPreview.set({ edgeId: bestEdgeId, position: bestNearest });
       } else {
         this.waypointPreview.set(null);
@@ -1582,6 +1554,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     });
     // Auto-focus the input after Angular renders it
     setTimeout(() => {
+      if (this.destroyed) return;
       const input = this.edgeLabelInputRef()?.nativeElement;
       if (input) {
         input.focus();
@@ -1626,7 +1599,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
 
     // Timer-based double-click detection (same rationale as onEdgeClick)
     const now = Date.now();
-    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < 400) {
+    if (this.lastEdgeClickId === edge.id && now - this.lastEdgeClickTime < DOUBLE_CLICK_TIMEOUT_MS) {
       this.lastEdgeClickId = null;
       this.lastEdgeClickTime = 0;
       event.preventDefault();
@@ -1730,9 +1703,14 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   private cutSelection(): void {
     this.copySelection();
     if (!this.clipboard) return;
+    this.deleteSelection();
+  }
 
-    // Reuse delete logic from the Delete key handler
+  /** Delete all currently selected nodes and edges atomically. */
+  private deleteSelection(): void {
     const sel = this.selection();
+    if (sel.nodes.length === 0 && sel.edges.length === 0) return;
+
     const graph = this.internalGraph();
     const nodeIdsToRemove = new Set(sel.nodes);
     const edgeIdsToRemove = new Set(sel.edges);
@@ -1768,7 +1746,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (!this.clipboard || (this.clipboard.nodes.length === 0 && this.clipboard.edges.length === 0)) return;
 
     this.pasteCount++;
-    const offset = this.pasteCount * 30;
+    const offset = this.pasteCount * PASTE_OFFSET_PX;
 
     // Build old-ID → new-ID mapping for nodes
     const nodeIdMap = new Map<string, string>();
@@ -1829,7 +1807,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     // Check instance-level size override first (from resize)
     if (node.size) return node.size;
     const nodeConfig = this.config.nodes.types.find(t => t.type === node.type);
-    return nodeConfig?.size || this.config.nodes.defaultSize || { width: 220, height: 100 };
+    return nodeConfig?.size || this.config.nodes.defaultSize || DEFAULT_NODE_SIZE;
   }
 
   getEdgePath(edge: GraphEdge): string {
@@ -2055,12 +2033,17 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return before.some(i => this.showToolbarItem(i)) && after.some(i => this.showToolbarItem(i));
   }
 
+  /** Resolved icon position from config (avoids repeated cast). */
+  private get iconPosition(): IconPosition {
+    return this.config.nodes.iconPosition || 'top-left';
+  }
+
   /**
    * Get the position for the node image (top-left corner of image).
    * Uses same positioning logic as icon but accounts for image dimensions.
    */
   getImagePosition(node: GraphNode): Position {
-    return getNodeImagePosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
+    return getNodeImagePosition(this.getNodeSize(node), this.iconPosition);
   }
 
   /**
@@ -2072,11 +2055,11 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   getIconPosition(node: GraphNode): Position {
-    return getNodeIconPosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
+    return getNodeIconPosition(this.getNodeSize(node), this.iconPosition);
   }
 
   getLabelPosition(node: GraphNode): Position {
-    return getNodeLabelPosition(this.getNodeSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
+    return getNodeLabelPosition(this.getNodeSize(node), this.iconPosition);
   }
 
   /**
@@ -2085,7 +2068,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
    */
   getLabelBounds(node: GraphNode): { x: number; y: number; width: number; height: number } {
     const size = this.getNodeSize(node);
-    return getNodeLabelBounds(size, this.getImageSize(node), (this.config.nodes.iconPosition || 'top-left') as any);
+    return getNodeLabelBounds(size, this.getImageSize(node), this.iconPosition);
   }
 
   /**
@@ -2132,7 +2115,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   private findEdgeAtPosition(pos: Position): string | null {
-    const hitDistance = 10; // pixels tolerance
+    const hitDistance = EDGE_HIT_DISTANCE;
     for (const edge of this.internalGraph().edges) {
       const sourcePoint = this.getEdgeSourcePoint(edge);
       const targetPoint = this.getEdgeTargetPoint(edge);
@@ -2342,7 +2325,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
         segments = [s, { x: t.x, y: s.y }, t];
       }
 
-      pos = this.evaluatePolylineAt(segments, pathT);
+      pos = evaluatePolylineAt(segments, pathT);
     } else {
       // Straight line — simple lerp
       pos = {
@@ -2355,41 +2338,6 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   /**
-   * Evaluate a position along a polyline at parameter t (0..1).
-   */
-  private evaluatePolylineAt(points: Position[], t: number): Position {
-    if (points.length < 2) return points[0] || { x: 0, y: 0 };
-
-    // Compute total length and per-segment lengths
-    let totalLength = 0;
-    const segLengths: number[] = [];
-    for (let i = 1; i < points.length; i++) {
-      const dx = points[i].x - points[i - 1].x;
-      const dy = points[i].y - points[i - 1].y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      segLengths.push(len);
-      totalLength += len;
-    }
-
-    if (totalLength === 0) return points[0];
-
-    const targetDist = t * totalLength;
-    let accumulated = 0;
-    for (let i = 0; i < segLengths.length; i++) {
-      if (accumulated + segLengths[i] >= targetDist) {
-        const segT = segLengths[i] === 0 ? 0 : (targetDist - accumulated) / segLengths[i];
-        return {
-          x: points[i].x + (points[i + 1].x - points[i].x) * segT,
-          y: points[i].y + (points[i + 1].y - points[i].y) * segT,
-        };
-      }
-      accumulated += segLengths[i];
-    }
-
-    return points[points.length - 1];
-  }
-
-  /**
    * Get the background rect dimensions for an edge label.
    * Returns x, y, width, height centered around the label position.
    */
@@ -2399,7 +2347,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (!label || !pos) return null;
 
     const theme = this.resolvedTheme.edge.label;
-    const charWidth = theme.fontSize * 0.62;
+    const charWidth = theme.fontSize * EDGE_LABEL_CHAR_WIDTH_RATIO;
     const textWidth = label.length * charWidth;
     const textHeight = theme.fontSize;
     const width = textWidth + theme.paddingX * 2;

@@ -6,6 +6,7 @@ type NodeSizeFn = (node: GraphNode) => Size;
 
 /** Compute evenly-spaced port positions along a side, always including the center. */
 export function computePortPositions(sideLength: number, spacing: number, margin: number): number[] {
+  if (spacing <= 0) return [sideLength / 2];
   const center = sideLength / 2;
   const positions: number[] = [center];
   let offset = spacing;

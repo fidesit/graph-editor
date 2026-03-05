@@ -1,7 +1,7 @@
 import { Position } from '../graph.model';
 
 type Size = { width: number; height: number };
-type IconPosition = 'top-left' | 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left';
+export type IconPosition = 'top-left' | 'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left';
 
 /** Get the image size for a node (square, proportional to height). */
 export function getNodeImageSize(nodeSize: Size): number {
@@ -42,7 +42,7 @@ export function getNodeIconPosition(nodeSize: Size, iconPosition: IconPosition):
     'left': { x: padding, y: nodeSize.height / 2 }
   };
 
-  return positions[iconPosition] || positions['left'];
+  return positions[iconPosition] || positions['top-left'];
 }
 
 /** Get the label position within a node. */
@@ -101,6 +101,7 @@ export function getNodeLabelBounds(
 
 /** Wrap text into lines respecting max characters per line. */
 export function wrapText(text: string, maxCharsPerLine: number): string[] {
+  if (maxCharsPerLine <= 0) return [text];
   if (text.length <= maxCharsPerLine) {
     return [text];
   }

@@ -9,7 +9,13 @@ export async function layoutDagre(
   getNodeSize: NodeSizeFn,
   options?: { nodesep?: number; ranksep?: number }
 ): Promise<GraphNode[]> {
-  const dagreModule = await import('dagre');
+  let dagreModule: any;
+  try {
+    dagreModule = await import('dagre');
+  } catch (err) {
+    console.error('Failed to load dagre layout library:', err);
+    return graph.nodes;
+  }
   const dagre = dagreModule.default ?? dagreModule;
 
   const g = new dagre.graphlib.Graph();
