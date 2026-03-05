@@ -311,7 +311,8 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
                 <div><dt><kbd>Drag port</kbd></dt><dd>Connect to target</dd></div>
                 <div><dt><kbd>Drag endpoint</kbd></dt><dd>Reconnect edge</dd></div>
                 <div><dt><kbd>Click edge</kbd></dt><dd>Direction</dd></div>
-                <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Toggle select</dd></div>
+                <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Add waypoint</dd></div>
+                <div><dt><kbd>Drag waypoint</kbd></dt><dd>Reshape edge</dd></div>
               </dl>
             </div>
             <div class="help-section">
@@ -330,9 +331,8 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
               <dl>
                 <div><dt><kbd>Layout btn</kbd></dt><dd>Apply last-used layout</dd></div>
                 <div><dt><kbd>Chevron ▾</kbd></dt><dd>Switch algorithm</dd></div>
-                <div><dt>Hierarchical</dt><dd>Dagre top-down / left-right</dd></div>
-                <div><dt>Force</dt><dd>Physics-based organic</dd></div>
-                <div><dt>Tree</dt><dd>BFS tree / forest</dd></div>
+                <div><dt><kbd>Hierarchical</kbd></dt><dd>Dagre top-down / left-right</dd></div>
+                <div><dt><kbd>Compact</kbd></dt><dd>Tight grid-based layout</dd></div>
               </dl>
             </div>
             <div class="help-section">

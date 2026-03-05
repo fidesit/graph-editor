@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.13] - 2026-03-05
+
+### Added
+
+- **Edge waypoints** — Ctrl+click on an edge to add draggable waypoints for manual routing bends. Waypoints work with all path types (straight, bezier, step). Drag existing waypoints to reshape edges; delete a waypoint by dragging it off the edge. Waypoint circles are only visible when the edge is selected.
+- **Edge type toolbar switcher** — New `'edge-type'` toolbar item lets users switch between straight, bezier, and step edge path types at runtime.
+
+### Changed
+
+- **Layout algorithms simplified** — Replaced force-directed and tree layouts with a single compact layout. `LayoutConfig.algorithm` now accepts `'dagre' | 'compact' | 'manual'` (was `'dagre' | 'force' | 'tree' | 'manual'`). Force/tree-specific `LayoutOptions` removed.
+- **Theme styling improvements** — Refreshed all four demo theme presets (Corporate, Emerald, Blueprint, Midnight) with refined color palettes, better contrast, and more cohesive per-type node styles.
+- **Internal refactoring** — Extracted ~790 lines of pure utility functions from `GraphEditorComponent` into 5 focused modules (`edge-path.utils`, `node-rendering.utils`, `snap-guide.utils`, `port-geometry.utils`, `layout-algorithms`). No public API changes.
+
 ## [1.0.12] - 2026-03-04
 
 ### Fixed

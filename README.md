@@ -404,7 +404,7 @@ npm test
 - [x] ~~Snap guides~~ — Alignment lines when dragging near another node's edge/center (also during resize)
 - [x] ~~Drag-to-connect~~ — Select node to reveal ports, drag from port to connect (replaces line tool)
 - [ ] Edge labels — Clickable, editable text on edges (conditions, weights, transition names)
-- [ ] Edge waypoints — Draggable midpoints on edges to create manual routing bends
+- [x] ~~Edge waypoints~~ — Ctrl+click to add draggable waypoints on edges for manual routing bends
 - [ ] Group/collapse — Select multiple nodes and group into a collapsible container node
 
 ### Navigation & Visualization
