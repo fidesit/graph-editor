@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.16] - 2026-03-06
+
+### Added
+
+- **`preservePorts` edge option** — New `EdgesConfig.preservePorts` option (default: `false`). When `true`, edges that already carry `sourcePort` and `targetPort` values are never overwritten by automatic port recalculation (drag, resize, layout). Edges without ports still get them assigned normally.
+
+### Fixed
+
+- **Parallel edges collapse on JSON load** — Edges loaded via the `[graph]` input (JSON import, initial data) without explicit `sourcePort`/`targetPort` values now receive distinct ports through conflict avoidance, preventing parallel edges from visually merging into one. Previously, only layout/drag/resize triggered conflict avoidance — the input binding and `ngOnInit` paths were missed.
+
 ## [1.0.15] - 2026-03-05
 
 ### Added
