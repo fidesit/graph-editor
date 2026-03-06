@@ -41,6 +41,7 @@ When releasing a new version:
 6. **Commit** — Commit all changes with message like `release: 1.0.1`
 7. **Tag** — Create tag in format like `1.0.1`
 8. **Push** — Push commits and tags; CI will publish to npm
+9. **Release** — Create new GitHub Release for 1.0.16 to trigger publish
 
 ## Conventions
 

@@ -272,9 +272,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (changes['graph'] && changes['graph'].currentValue) {
       const graph: Graph = structuredClone(changes['graph'].currentValue);
       // Recalculate edge ports with conflict avoidance so parallel edges
-      // between the same node pair don't collapse onto identical ports
+      // between the same node pair don't collapse onto identical ports.
+      // Only assign ports to edges missing them — never overwrite user-set ports.
       const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
-        graph.edges, graph.nodes, () => true
+        graph.edges, graph.nodes, (edge) => !edge.sourcePort || !edge.targetPort
       );
       this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
@@ -290,7 +291,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     if (this.graph && this.internalGraph().nodes.length === 0 && this.graph.nodes?.length > 0) {
       const graph: Graph = structuredClone(this.graph);
       const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
-        graph.edges, graph.nodes, () => true
+        graph.edges, graph.nodes, (edge) => !edge.sourcePort || !edge.targetPort
       );
       this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
