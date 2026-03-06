@@ -456,11 +456,11 @@
                     [attr.y]="getLabelLineY(node, $index, getWrappedLabel(node).lines.length, getWrappedLabel(node).lineHeight)">{{ line }}</tspan>
                 }
               </text>
-              @if (selection().nodes.includes(node.id) && activeTool() === 'hand' && selection().nodes.length === 1) {
-                <rect class="resize-handle resize-handle-se" [attr.x]="getNodeSize(node).width - 8" [attr.y]="getNodeSize(node).height - 8"
-                  width="10" height="10" [attr.fill]="resolvedTheme.selection.color" rx="2" cursor="se-resize"
-                  (mousedown)="onResizeHandleMouseDown($event, node)" />
-              }
+            }
+            @if (selection().nodes.includes(node.id) && activeTool() === 'hand' && selection().nodes.length === 1) {
+              <rect class="resize-handle resize-handle-se" [attr.x]="getNodeSize(node).width - 8" [attr.y]="getNodeSize(node).height - 8"
+                width="10" height="10" [attr.fill]="resolvedTheme.selection.color" rx="2" cursor="se-resize"
+                (mousedown)="onResizeHandleMouseDown($event, node)" />
             }
           </g>
         }

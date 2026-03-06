@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2026-03-06
+
+### Fixed
+
+- **Resize handle missing with custom templates** — The node resize handle was only rendered in the default rendering path. Nodes using custom HTML templates, SVG templates, or components now correctly show the resize handle when selected.
+
 ## [1.0.19] - 2026-03-06
 
 ### Fixed
