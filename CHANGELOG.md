@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.21] - 2026-03-06
+
+### Fixed
+
+- **Resize handle visible in readonly mode** — The node resize handle is now hidden when the editor is in readonly mode (via `readonly` input or `interaction.readonly` config).
+
 ## [1.0.20] - 2026-03-06
 
 ### Fixed
