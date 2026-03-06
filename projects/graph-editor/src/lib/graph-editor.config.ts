@@ -135,6 +135,13 @@ export interface EdgesConfig {
   component: Type<any>;                // Edge rendering component
   allowMultiple?: boolean;             // Allow multiple edges between same nodes (default: false)
   style?: EdgeStyle;                   // Default edge style
+  /**
+   * When true, existing `sourcePort` / `targetPort` values on edges are never
+   * overwritten by automatic port recalculation (drag, resize, layout, etc.).
+   * Edges without ports still get them assigned on first render.
+   * Default: false (ports are recalculated to face the closest side).
+   */
+  preservePorts?: boolean;
 }
 
 /**

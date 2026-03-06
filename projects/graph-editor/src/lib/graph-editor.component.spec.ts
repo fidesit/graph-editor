@@ -88,4 +88,79 @@ describe('GraphEditorComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.activeTool()).toBe('hand');
   });
+
+  it('should assign distinct ports to parallel edges on JSON load', () => {
+    const fixture = TestBed.createComponent(GraphEditorComponent);
+    fixture.componentRef.setInput('config', minimalConfig);
+    fixture.componentRef.setInput('graph', {
+      nodes: [
+        { id: 'a', type: 'default', data: {}, position: { x: 0, y: 0 } },
+        { id: 'b', type: 'default', data: {}, position: { x: 300, y: 0 } }
+      ],
+      edges: [
+        { id: 'e1', source: 'a', target: 'b' },
+        { id: 'e2', source: 'a', target: 'b' },
+        { id: 'e3', source: 'a', target: 'b' }
+      ]
+    });
+    fixture.detectChanges();
+
+    const edges = fixture.componentInstance.internalGraph().edges;
+    // Every edge should have ports assigned
+    for (const edge of edges) {
+      expect(edge.sourcePort).toBeTruthy();
+      expect(edge.targetPort).toBeTruthy();
+    }
+    // No two edges should share the exact same sourcePort+targetPort pair
+    const portPairs = edges.map(e => `${e.sourcePort}|${e.targetPort}`);
+    const uniquePairs = new Set(portPairs);
+    expect(uniquePairs.size).toBe(portPairs.length);
+  });
+
+  it('should not overwrite existing ports when preservePorts is true', () => {
+    const preserveConfig: GraphEditorConfig = {
+      ...minimalConfig,
+      edges: { ...minimalConfig.edges, preservePorts: true }
+    };
+    const fixture = TestBed.createComponent(GraphEditorComponent);
+    fixture.componentRef.setInput('config', preserveConfig);
+    fixture.componentRef.setInput('graph', {
+      nodes: [
+        { id: 'a', type: 'default', data: {}, position: { x: 0, y: 0 } },
+        { id: 'b', type: 'default', data: {}, position: { x: 300, y: 0 } }
+      ],
+      edges: [
+        { id: 'e1', source: 'a', target: 'b', sourcePort: 'top-0', targetPort: 'bottom-0' }
+      ]
+    });
+    fixture.detectChanges();
+
+    const edge = fixture.componentInstance.internalGraph().edges[0];
+    expect(edge.sourcePort).toBe('top-0');
+    expect(edge.targetPort).toBe('bottom-0');
+  });
+
+  it('should still assign ports to edges without ports even when preservePorts is true', () => {
+    const preserveConfig: GraphEditorConfig = {
+      ...minimalConfig,
+      edges: { ...minimalConfig.edges, preservePorts: true }
+    };
+    const fixture = TestBed.createComponent(GraphEditorComponent);
+    fixture.componentRef.setInput('config', preserveConfig);
+    fixture.componentRef.setInput('graph', {
+      nodes: [
+        { id: 'a', type: 'default', data: {}, position: { x: 0, y: 0 } },
+        { id: 'b', type: 'default', data: {}, position: { x: 300, y: 0 } }
+      ],
+      edges: [
+        { id: 'e1', source: 'a', target: 'b' }
+      ]
+    });
+    fixture.detectChanges();
+
+    const edge = fixture.componentInstance.internalGraph().edges[0];
+    // Edge had no ports, so they should be assigned even with preservePorts
+    expect(edge.sourcePort).toBeTruthy();
+    expect(edge.targetPort).toBeTruthy();
+  });
 });

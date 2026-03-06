@@ -261,16 +261,22 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    // Sync graph input to internal signal
-    if (changes['graph'] && changes['graph'].currentValue) {
-      this.internalGraph.set(structuredClone(changes['graph'].currentValue));
-    }
-    // Re-resolve theme when config changes
+    // Re-resolve theme when config changes (before graph processing so port spacing is available)
     if (changes['config']) {
       this.resolvedTheme = resolveTheme(this.config.theme);
       applyThemeCssProperties(this.hostEl.nativeElement, this.resolvedTheme, this.config.theme?.variables);
       // Reset edge path type override so theme default takes over
       this.edgePathTypeOverride.set(null);
+    }
+    // Sync graph input to internal signal
+    if (changes['graph'] && changes['graph'].currentValue) {
+      const graph: Graph = structuredClone(changes['graph'].currentValue);
+      // Recalculate edge ports with conflict avoidance so parallel edges
+      // between the same node pair don't collapse onto identical ports
+      const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+        graph.edges, graph.nodes, () => true
+      );
+      this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
   }
 
@@ -280,9 +286,13 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       this.resolvedTheme = resolveTheme(this.config.theme);
       applyThemeCssProperties(this.hostEl.nativeElement, this.resolvedTheme, this.config.theme?.variables);
     }
-    // Initialize with current graph value
-    if (this.graph) {
-      this.internalGraph.set(structuredClone(this.graph));
+    // Initialize with current graph value (if ngOnChanges hasn't already set it)
+    if (this.graph && this.internalGraph().nodes.length === 0 && this.graph.nodes?.length > 0) {
+      const graph: Graph = structuredClone(this.graph);
+      const updatedEdges = this.recalculateEdgePortsWithConflictAvoidance(
+        graph.edges, graph.nodes, () => true
+      );
+      this.internalGraph.set({ ...graph, edges: updatedEdges });
     }
     this.validate();
     // Initialize history with starting state
@@ -2294,18 +2304,29 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   /**
    * Recalculate edge ports for edges matching a predicate, avoiding conflicts
    * where multiple edges between the same node pair would get identical ports.
+   *
+   * When `config.edges.preservePorts` is true, edges that already carry both
+   * `sourcePort` and `targetPort` are never overwritten — only edges missing
+   * ports get them assigned (still with conflict avoidance).
    */
   private recalculateEdgePortsWithConflictAvoidance(
     edges: GraphEdge[],
     nodes: GraphNode[],
     affectsEdge: (edge: GraphEdge) => boolean
   ): GraphEdge[] {
+    const preserve = !!this.config.edges?.preservePorts;
     const sizeFn = (n: GraphNode) => this.getNodeSize(n);
     const sp = this.portSpacing;
     const mg = this.portMargin;
 
     return edges.reduce<GraphEdge[]>((acc, edge) => {
       if (!affectsEdge(edge)) { acc.push(edge); return acc; }
+
+      // When preservePorts is on, keep edges that already have both ports
+      if (preserve && edge.sourcePort && edge.targetPort) {
+        acc.push(edge);
+        return acc;
+      }
 
       const sourceNode = nodes.find(n => n.id === edge.source);
       const targetNode = nodes.find(n => n.id === edge.target);
