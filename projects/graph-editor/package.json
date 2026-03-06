@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fidesit/graph-editor.git"
+    "url": "git+https://github.com/fidesit/graph-editor.git"
   },
   "homepage": "https://github.com/fidesit/graph-editor#readme",
   "bugs": {
