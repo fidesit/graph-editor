@@ -314,7 +314,7 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
                 <div><dt><kbd>Select node</kbd></dt><dd>Show ports</dd></div>
                 <div><dt><kbd>Drag port</kbd></dt><dd>Connect to target</dd></div>
                 <div><dt><kbd>Drag endpoint</kbd></dt><dd>Reconnect edge</dd></div>
-                <div><dt><kbd>Click edge</kbd></dt><dd>Direction</dd></div>
+                <div><dt><kbd>Right-click</kbd></dt><dd>Change direction</dd></div>
                 <div><dt><kbd>Ctrl+Click</kbd></dt><dd>Add waypoint</dd></div>
                 <div><dt><kbd>Drag waypoint</kbd></dt><dd>Reshape edge</dd></div>
               </dl>
@@ -379,10 +379,37 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
             </button>
           }
           @if (contextMenu()!.type === 'edge') {
-            <button class="context-menu-item" (click)="reverseEdge()">
-              <span class="context-menu-icon">🔄</span>
-              Reverse Direction
-            </button>
+            @if (edgeDirectionExpanded()) {
+              <div class="context-menu-label">
+                <span class="context-menu-icon">🔄</span>
+                Change Direction
+              </div>
+              <div class="direction-buttons">
+                <button
+                  class="direction-btn"
+                  [class.active]="getEdgeDirection() === 'backward'"
+                  title="Backward"
+                  (click)="changeEdgeDirection('backward')"
+                >←</button>
+                <button
+                  class="direction-btn"
+                  [class.active]="getEdgeDirection() === 'bidirectional'"
+                  title="Bidirectional"
+                  (click)="changeEdgeDirection('bidirectional')"
+                >↔</button>
+                <button
+                  class="direction-btn"
+                  [class.active]="getEdgeDirection() === 'forward'"
+                  title="Forward"
+                  (click)="changeEdgeDirection('forward')"
+                >→</button>
+              </div>
+            } @else {
+              <button class="context-menu-item" (click)="edgeDirectionExpanded.set(true); $event.stopPropagation()">
+                <span class="context-menu-icon">🔄</span>
+                Change Direction
+              </button>
+            }
             <button class="context-menu-item danger" (click)="deleteEdge()">
               <span class="context-menu-icon">🗑️</span>
               Delete Edge
@@ -818,6 +845,50 @@ const DEMO_VALIDATION_RULES: ValidationRule[] = [
       font-size: 14px;
       width: 18px;
       text-align: center;
+    }
+
+    .context-menu-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px 4px;
+      font-size: 12px;
+      color: #9ca3af;
+      font-weight: 500;
+    }
+
+    .direction-buttons {
+      display: flex;
+      gap: 2px;
+      padding: 2px 8px 4px;
+    }
+
+    .direction-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 28px;
+      padding: 0;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.15s;
+      color: #6b7280;
+    }
+
+    .direction-btn:hover {
+      background: #f3f4f6;
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+
+    .direction-btn.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: white;
     }
 
     /* Validation Panel */
@@ -1407,6 +1478,7 @@ export class AppComponent implements AfterViewInit {
   readonlyMode = signal(false);
   guardsEnabled = signal(true);
   contextMenu = signal<ContextMenuEvent | null>(null);
+  edgeDirectionExpanded = signal(false);
   validationResult = signal<ValidationResult | null>(null);
   editingNode = signal<import('@utisha/graph-editor').GraphNode | null>(null);
   showImport = signal(false);
@@ -1588,6 +1660,7 @@ export class AppComponent implements AfterViewInit {
 
   closeContextMenu(): void {
     this.contextMenu.set(null);
+    this.edgeDirectionExpanded.set(false);
   }
 
   addNodeAtPosition(): void {
@@ -1636,18 +1709,17 @@ export class AppComponent implements AfterViewInit {
     this.closeContextMenu();
   }
 
-  reverseEdge(): void {
+  getEdgeDirection(): string {
+    const menu = this.contextMenu();
+    if (!menu?.edgeId) return 'forward';
+    const edge = this.currentGraph().edges.find(e => e.id === menu.edgeId);
+    return edge?.direction || 'forward';
+  }
+
+  changeEdgeDirection(direction: 'forward' | 'backward' | 'bidirectional'): void {
     const menu = this.contextMenu();
     if (!menu?.edgeId) return;
-    const graph = this.currentGraph();
-    this.currentGraph.set({
-      ...graph,
-      edges: graph.edges.map(e => 
-        e.id === menu.edgeId
-          ? { ...e, source: e.target, target: e.source }
-          : e
-      )
-    });
+    this.editor().setEdgeDirection(direction);
     this.closeContextMenu();
   }
 

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.19] - 2026-03-06
+
+### Fixed
+
+- **Edge labels not following waypoints** — Labels on step and bezier edges now follow the actual rendered path (including waypoints) instead of staying on the straight line between source and target ports.
+
+### Changed
+
+- **Edge direction moved to right-click menu** — The edge direction selector (←/↔/→) is no longer shown automatically when clicking an edge. Instead, right-click an edge and choose "Change Direction" to expand the direction buttons inline.
+
 ## [1.0.18] - 2026-03-06
 
 ### Fixed

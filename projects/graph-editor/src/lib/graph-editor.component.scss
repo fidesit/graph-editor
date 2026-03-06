@@ -376,23 +376,6 @@
   border-left-color: #f59e0b;
 }
 
-.edge-direction-selector {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  margin-top: -12px;
-  display: flex;
-  gap: 2px;
-  background: var(--ge-toolbar-bg, rgba(255, 255, 255, 0.95));
-  padding: 4px;
-  border-radius: calc(var(--ge-toolbar-radius, 8px) * 0.75);
-  box-shadow: var(--ge-toolbar-shadow, 0 2px 8px rgba(0, 0, 0, 0.15));
-  backdrop-filter: blur(4px);
-  z-index: 20;
-  pointer-events: auto;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
 .direction-btn {
   display: flex;
   align-items: center;

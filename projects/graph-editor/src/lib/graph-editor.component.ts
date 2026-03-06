@@ -234,24 +234,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   protected nodeSvgTemplate = contentChild(NodeSvgTemplateDirective);
   protected edgeTemplate = contentChild(EdgeTemplateDirective);
 
-  // Selected edge info for direction selector positioning
-  selectedEdgeMidpoint = computed(() => {
-    const sel = this.selection();
-    if (sel.edges.length !== 1) return null;
-    const edge = this.internalGraph().edges.find(e => e.id === sel.edges[0]);
-    if (!edge) return null;
 
-    const sourcePoint = this.getEdgeSourcePoint(edge);
-    const targetPoint = this.getEdgeTargetPoint(edge);
-    const midX = (sourcePoint.x + targetPoint.x) / 2;
-    const midY = (sourcePoint.y + targetPoint.y) / 2;
-
-    return {
-      edge,
-      x: midX * this.scale() + this.panX(),
-      y: midY * this.scale() + this.panY()
-    };
-  });
 
   private readonly hostEl = inject(ElementRef);
   private destroyed = false;
@@ -852,10 +835,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Close dropdowns on any canvas interaction
+    // Close dropdowns and popups on any canvas interaction
     this.layoutDropdownOpen.set(false);
     this.edgeTypeDropdownOpen.set(false);
-
     // Prevent native text selection on all canvas mousedowns (suppresses Edge mini menu)
     event.preventDefault();
 
@@ -1601,9 +1583,10 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       return;
     }
 
-    // Check if clicking on an edge (use hit area logic)
+    // Check if clicking on an edge
     const edgeId = this.findEdgeAtPosition({ x, y });
     if (edgeId) {
+      this.selectEdge(edgeId);
       this.contextMenu.emit({
         type: 'edge',
         position: { x: event.clientX, y: event.clientY },
@@ -2022,12 +2005,12 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     return null;
   }
 
-  setEdgeDirection(direction: 'forward' | 'backward' | 'bidirectional'): void {
-    const sel = this.selection();
-    if (sel.edges.length !== 1) return;
+  setEdgeDirection(direction: 'forward' | 'backward' | 'bidirectional', targetEdge?: GraphEdge): void {
+    const edgeId = targetEdge?.id ?? this.selection().edges[0];
+    if (!edgeId) return;
 
     const graph = this.internalGraph();
-    const edgeIndex = graph.edges.findIndex(e => e.id === sel.edges[0]);
+    const edgeIndex = graph.edges.findIndex(e => e.id === edgeId);
     if (edgeIndex === -1) return;
 
     const updatedEdges = [...graph.edges];
@@ -2443,55 +2426,9 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     const offsetY = this.resolvedTheme.edge.label.offsetY;
     const pathType = this.activeEdgePathType;
 
-    let pos: Position;
-
-    if (pathType === 'bezier') {
-      // Evaluate cubic bezier at t
-      const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
-      const sc = getPortControlOffset(sourcePort, offset);
-      const tc = getPortControlOffset(targetPort, offset);
-      const crossBias = 0.15;
-      const dx = t.x - s.x;
-      const dy = t.y - s.y;
-      const c1x = s.x + sc.dx + (sc.dx !== 0 ? 0 : dx * crossBias);
-      const c1y = s.y + sc.dy + (sc.dy !== 0 ? 0 : dy * crossBias);
-      const c2x = t.x + tc.dx + (tc.dx !== 0 ? 0 : dx * -crossBias);
-      const c2y = t.y + tc.dy + (tc.dy !== 0 ? 0 : dy * -crossBias);
-
-      // De Casteljau evaluation
-      const u = 1 - pathT;
-      pos = {
-        x: u * u * u * s.x + 3 * u * u * pathT * c1x + 3 * u * pathT * pathT * c2x + pathT * pathT * pathT * t.x,
-        y: u * u * u * s.y + 3 * u * u * pathT * c1y + 3 * u * pathT * pathT * c2y + pathT * pathT * pathT * t.y,
-      };
-    } else if (pathType === 'step') {
-      // Evaluate piecewise linear step path at t
-      const midX = (s.x + t.x) / 2;
-      const midY = (s.y + t.y) / 2;
-      const sourceSide = getPortSide(sourcePort);
-      const targetSide = getPortSide(targetPort);
-      const isSourceVertical = sourceSide === 'top' || sourceSide === 'bottom';
-      const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
-
-      let segments: Position[];
-      if (isSourceVertical && isTargetVertical) {
-        segments = [s, { x: s.x, y: midY }, { x: t.x, y: midY }, t];
-      } else if (!isSourceVertical && !isTargetVertical) {
-        segments = [s, { x: midX, y: s.y }, { x: midX, y: t.y }, t];
-      } else if (isSourceVertical) {
-        segments = [s, { x: s.x, y: t.y }, t];
-      } else {
-        segments = [s, { x: t.x, y: s.y }, t];
-      }
-
-      pos = evaluatePolylineAt(segments, pathT);
-    } else {
-      // Straight line — simple lerp
-      pos = {
-        x: s.x + (t.x - s.x) * pathT,
-        y: s.y + (t.y - s.y) * pathT,
-      };
-    }
+    // Build a polyline that follows the actual rendered path (including waypoints)
+    const polyline = getEdgeHitTestPolyline(s, t, edge.waypoints, pathType, sourcePort, targetPort);
+    const pos = evaluatePolylineAt(polyline, pathT);
 
     return { x: pos.x, y: pos.y + offsetY };
   }

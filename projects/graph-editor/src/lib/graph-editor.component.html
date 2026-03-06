@@ -571,31 +571,4 @@
     </div>
   }
 
-  <!-- Edge direction selector overlay -->
-  @if (selectedEdgeMidpoint()) {
-    <div
-      class="edge-direction-selector"
-      [style.left.px]="selectedEdgeMidpoint()!.x"
-      [style.top.px]="selectedEdgeMidpoint()!.y"
-    >
-      <button
-        class="direction-btn"
-        [class.active]="selectedEdgeMidpoint()!.edge.direction === 'backward'"
-        title="Backward"
-        (click)="setEdgeDirection('backward')"
-      >←</button>
-      <button
-        class="direction-btn"
-        [class.active]="selectedEdgeMidpoint()!.edge.direction === 'bidirectional'"
-        title="Bidirectional"
-        (click)="setEdgeDirection('bidirectional')"
-      >↔</button>
-      <button
-        class="direction-btn"
-        [class.active]="!selectedEdgeMidpoint()!.edge.direction || selectedEdgeMidpoint()!.edge.direction === 'forward'"
-        title="Forward"
-        (click)="setEdgeDirection('forward')"
-      >→</button>
-    </div>
-  }
 </div>
