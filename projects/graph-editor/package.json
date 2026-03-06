@@ -1,6 +1,6 @@
 {
   "name": "@utisha/graph-editor",
-  "version": "1.0.17",
+  "version": "1.0.18",
   "description": "Configuration-driven visual graph editor for Angular 19+",
   "author": "Utisha",
   "license": "MIT",

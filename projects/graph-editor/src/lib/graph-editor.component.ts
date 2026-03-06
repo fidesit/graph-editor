@@ -28,7 +28,7 @@ import {
   getPortSide, getPortControlOffset,
   buildRoundedPolyline, buildSmoothBezierThroughPoints, buildStepThroughPoints,
   buildBezierPath, buildStepPath, buildStraightPath,
-  pointToSegmentDistance, evaluatePolylineAt
+  pointToSegmentDistance, evaluatePolylineAt, getEdgeHitTestPolyline
 } from './utils/edge-path.utils';
 import {
   getNodeImageSize, getNodeImagePosition, getNodeIconPosition,
@@ -1212,10 +1212,17 @@ export class GraphEditorComponent implements OnInit, OnChanges {
       let bestNearest: Position | null = null;
       let bestDist = Infinity;
 
+      const pathType = this.activeEdgePathType;
       for (const edge of this.internalGraph().edges) {
+        const sourceNode = this.internalGraph().nodes.find(n => n.id === edge.source);
+        const targetNode = this.internalGraph().nodes.find(n => n.id === edge.target);
+        if (!sourceNode || !targetNode) continue;
+
+        const sourcePort = edge.sourcePort || this.findClosestPortForEdge(sourceNode, targetNode, 'source');
+        const targetPort = edge.targetPort || this.findClosestPortForEdge(targetNode, sourceNode, 'target');
         const sourcePoint = this.getEdgeSourcePoint(edge);
         const targetPoint = this.getEdgeTargetPoint(edge);
-        const polyline = [sourcePoint, ...(edge.waypoints || []), targetPoint];
+        const polyline = getEdgeHitTestPolyline(sourcePoint, targetPoint, edge.waypoints, pathType, sourcePort, targetPort);
 
         for (let i = 0; i < polyline.length - 1; i++) {
           const a = polyline[i];
@@ -2315,7 +2322,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
     nodes: GraphNode[],
     affectsEdge: (edge: GraphEdge) => boolean
   ): GraphEdge[] {
-    const preserve = !!this.config.edges?.preservePorts;
+    const preserve = this.config.edges?.preservePorts !== false;
     const sizeFn = (n: GraphNode) => this.getNodeSize(n);
     const sp = this.portSpacing;
     const mg = this.portMargin;

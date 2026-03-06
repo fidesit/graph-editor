@@ -103,11 +103,11 @@ export function buildSmoothBezierThroughPoints(points: Position[]): string {
 }
 
 /**
- * Build an orthogonal step path through waypoints.
+ * Get the orthogonal corner points for a step path through waypoints.
  * All segments are strictly horizontal or vertical.
  */
-export function buildStepThroughPoints(points: Position[], sourcePort: string, targetPort: string): string {
-  if (points.length < 2) return '';
+export function getStepThroughPointsPolyline(points: Position[], sourcePort: string, targetPort: string): Position[] {
+  if (points.length < 2) return [];
 
   const sourceSide = getPortSide(sourcePort);
   const targetSide = getPortSide(targetPort);
@@ -141,6 +141,17 @@ export function buildStepThroughPoints(points: Position[], sourcePort: string, t
     }
   }
 
+  return result;
+}
+
+/**
+ * Build an orthogonal step path through waypoints.
+ * All segments are strictly horizontal or vertical.
+ */
+export function buildStepThroughPoints(points: Position[], sourcePort: string, targetPort: string): string {
+  const result = getStepThroughPointsPolyline(points, sourcePort, targetPort);
+  if (result.length === 0) return '';
+
   let d = `M ${result[0].x},${result[0].y}`;
   for (let i = 1; i < result.length; i++) {
     d += ` L ${result[i].x},${result[i].y}`;
@@ -166,11 +177,11 @@ export function buildBezierPath(
   return `M ${s.x},${s.y} C ${sc1x},${sc1y} ${tc1x},${tc1y} ${t.x},${t.y}`;
 }
 
-/** Build a step edge path (no waypoints). */
-export function buildStepPath(
+/** Get the corner points for a step path (no waypoints). */
+export function getStepPathPoints(
   s: Position, t: Position,
   sourcePort: string, targetPort: string
-): string {
+): Position[] {
   const midX = (s.x + t.x) / 2;
   const midY = (s.y + t.y) / 2;
   const sourceSide = getPortSide(sourcePort);
@@ -179,14 +190,27 @@ export function buildStepPath(
   const isTargetVertical = targetSide === 'top' || targetSide === 'bottom';
 
   if (isSourceVertical && isTargetVertical) {
-    return `M ${s.x},${s.y} L ${s.x},${midY} L ${t.x},${midY} L ${t.x},${t.y}`;
+    return [s, { x: s.x, y: midY }, { x: t.x, y: midY }, t];
   } else if (!isSourceVertical && !isTargetVertical) {
-    return `M ${s.x},${s.y} L ${midX},${s.y} L ${midX},${t.y} L ${t.x},${t.y}`;
+    return [s, { x: midX, y: s.y }, { x: midX, y: t.y }, t];
   } else if (isSourceVertical) {
-    return `M ${s.x},${s.y} L ${s.x},${t.y} L ${t.x},${t.y}`;
+    return [s, { x: s.x, y: t.y }, t];
   } else {
-    return `M ${s.x},${s.y} L ${t.x},${s.y} L ${t.x},${t.y}`;
+    return [s, { x: t.x, y: s.y }, t];
   }
+}
+
+/** Build a step edge path (no waypoints). */
+export function buildStepPath(
+  s: Position, t: Position,
+  sourcePort: string, targetPort: string
+): string {
+  const points = getStepPathPoints(s, t, sourcePort, targetPort);
+  let d = `M ${points[0].x},${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    d += ` L ${points[i].x},${points[i].y}`;
+  }
+  return d;
 }
 
 /** Build a straight edge path. */
@@ -243,4 +267,139 @@ export function evaluatePolylineAt(points: Position[], t: number): Position {
   }
 
   return points[points.length - 1];
+}
+
+/** Sample a cubic bezier curve into a polyline of evenly-spaced points. */
+export function sampleCubicBezier(
+  p0: Position, cp1: Position, cp2: Position, p3: Position, samples: number
+): Position[] {
+  const result: Position[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const u = 1 - t;
+    result.push({
+      x: u * u * u * p0.x + 3 * u * u * t * cp1.x + 3 * u * t * t * cp2.x + t * t * t * p3.x,
+      y: u * u * u * p0.y + 3 * u * u * t * cp1.y + 3 * u * t * t * cp2.y + t * t * t * p3.y,
+    });
+  }
+  return result;
+}
+
+/**
+ * Sample a quadratic bezier curve into a polyline.
+ * Q(t) = (1-t)^2*p0 + 2*(1-t)*t*cp + t^2*p2
+ */
+function sampleQuadraticBezier(
+  p0: Position, cp: Position, p2: Position, samples: number
+): Position[] {
+  const result: Position[] = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = i / samples;
+    const u = 1 - t;
+    result.push({
+      x: u * u * p0.x + 2 * u * t * cp.x + t * t * p2.x,
+      y: u * u * p0.y + 2 * u * t * cp.y + t * t * p2.y,
+    });
+  }
+  return result;
+}
+
+/**
+ * Build a polyline approximation of the rendered edge path, suitable for hit-testing.
+ * Returns Position[] that closely follows the visual path for any path type.
+ */
+export function getEdgeHitTestPolyline(
+  sourcePoint: Position,
+  targetPoint: Position,
+  waypoints: Position[] | undefined,
+  pathType: 'straight' | 'bezier' | 'step',
+  sourcePort: string,
+  targetPort: string
+): Position[] {
+  const hasWaypoints = waypoints && waypoints.length > 0;
+
+  if (pathType === 'straight') {
+    return [sourcePoint, ...(waypoints || []), targetPoint];
+  }
+
+  if (pathType === 'step') {
+    if (hasWaypoints) {
+      const points = [sourcePoint, ...waypoints!, targetPoint];
+      return getStepThroughPointsPolyline(points, sourcePort, targetPort);
+    }
+    return getStepPathPoints(sourcePoint, targetPoint, sourcePort, targetPort);
+  }
+
+  // pathType === 'bezier'
+  if (hasWaypoints) {
+    const points = [sourcePoint, ...waypoints!, targetPoint];
+    return sampleSmoothBezierThroughPoints(points);
+  }
+  return sampleBezierPath(sourcePoint, targetPoint, sourcePort, targetPort);
+}
+
+/** Sample the single-segment cubic bezier from buildBezierPath into a polyline. */
+function sampleBezierPath(
+  s: Position, t: Position,
+  sourcePort: string, targetPort: string
+): Position[] {
+  const offset = Math.max(40, Math.abs(t.x - s.x) * 0.3, Math.abs(t.y - s.y) * 0.3);
+  const sc = getPortControlOffset(sourcePort, offset);
+  const tc = getPortControlOffset(targetPort, offset);
+  const crossBias = 0.15;
+  const dx = t.x - s.x;
+  const dy = t.y - s.y;
+  const cp1: Position = {
+    x: s.x + sc.dx + (sc.dx !== 0 ? 0 : dx * crossBias),
+    y: s.y + sc.dy + (sc.dy !== 0 ? 0 : dy * crossBias),
+  };
+  const cp2: Position = {
+    x: t.x + tc.dx + (tc.dx !== 0 ? 0 : dx * -crossBias),
+    y: t.y + tc.dy + (tc.dy !== 0 ? 0 : dy * -crossBias),
+  };
+  return sampleCubicBezier(s, cp1, cp2, t, 20);
+}
+
+/** Sample the Catmull-Rom spline from buildSmoothBezierThroughPoints into a polyline. */
+function sampleSmoothBezierThroughPoints(points: Position[]): Position[] {
+  if (points.length < 2) return points.slice();
+  if (points.length === 2) return [points[0], points[1]];
+
+  if (points.length === 3) {
+    // Quadratic bezier — mirrors buildSmoothBezierThroughPoints 3-point case
+    const [p0, p1, p2] = points;
+    const cp: Position = {
+      x: 2 * p1.x - (p0.x + p2.x) / 2,
+      y: 2 * p1.y - (p0.y + p2.y) / 2,
+    };
+    return sampleQuadraticBezier(p0, cp, p2, 20);
+  }
+
+  // Catmull-Rom to cubic bezier — mirrors the 4+ point case
+  const tension = 0.5;
+  const samplesPerSegment = 8;
+  const result: Position[] = [points[0]];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[Math.max(0, i - 1)];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[Math.min(points.length - 1, i + 2)];
+
+    const t1x = tension * (p2.x - p0.x);
+    const t1y = tension * (p2.y - p0.y);
+    const t2x = tension * (p3.x - p1.x);
+    const t2y = tension * (p3.y - p1.y);
+
+    const cp1: Position = { x: p1.x + t1x / 3, y: p1.y + t1y / 3 };
+    const cp2: Position = { x: p2.x - t2x / 3, y: p2.y - t2y / 3 };
+
+    // Sample this segment (skip t=0 to avoid duplicate with previous segment end)
+    const segmentSamples = sampleCubicBezier(p1, cp1, cp2, p2, samplesPerSegment);
+    for (let j = 1; j < segmentSamples.length; j++) {
+      result.push(segmentSamples[j]);
+    }
+  }
+
+  return result;
 }

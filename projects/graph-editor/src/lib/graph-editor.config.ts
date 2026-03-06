@@ -139,7 +139,7 @@ export interface EdgesConfig {
    * When true, existing `sourcePort` / `targetPort` values on edges are never
    * overwritten by automatic port recalculation (drag, resize, layout, etc.).
    * Edges without ports still get them assigned on first render.
-   * Default: false (ports are recalculated to face the closest side).
+   * Default: true (ports are preserved once assigned).
    */
   preservePorts?: boolean;
 }

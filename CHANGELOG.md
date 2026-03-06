@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.18] - 2026-03-06
+
+### Fixed
+
+- **Waypoint addition on step/bezier edges** — Ctrl+click to add a waypoint now detects proximity to the actual rendered path (orthogonal corners for step, curve for bezier) instead of only the straight line between source and target.
+- **Edge reconnection overwritten by port recalculation** — Dragging an edge endpoint to a new anchor point was immediately undone by the `graphChange` round-trip. Port recalculation now only assigns ports to edges missing them.
+
+### Changed
+
+- **`preservePorts` defaults to `true`** — Edge ports are now preserved once assigned. Set `preservePorts: false` to restore the old behavior where ports are recalculated on every drag/resize/layout.
+
 ## [1.0.17] - 2026-03-06
 
 ### Fixed
