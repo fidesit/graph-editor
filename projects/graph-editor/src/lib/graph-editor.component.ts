@@ -1977,6 +1977,7 @@ export class GraphEditorComponent implements OnInit, OnChanges {
   setEdgePathType(type: 'straight' | 'bezier' | 'step'): void {
     this.edgePathTypeOverride.set(type);
     this.edgeTypeDropdownOpen.set(false);
+    this.emitGraphChange();
   }
 
   // Port spacing/margin — resolved from theme config
